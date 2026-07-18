@@ -39,11 +39,15 @@ def send_telegram_message(new_jobs: List[Dict]):
         return
 
     # Build an HTML formatted message
-    message = f"<b>🚀 Job Web Scraper Found {len(new_jobs)} New Jobs!</b>\n\n"
+    message = (
+        f"🎯 <b>Daily Job Alert</b>\n"
+        f"<i>Found {len(new_jobs)} new opportunities today</i>\n\n"
+        f"➖➖➖➖➖➖➖➖➖➖\n\n"
+    )
     for i, job in enumerate(new_jobs, 1):
-        message += f"{i}. <b>{job['title']}</b>\n"
-        message += f"📅 Posted: {job['postedDate']}\n"
-        message += f"🔗 <a href='{job['link']}'>Apply Here</a>\n\n"
+        message += f"<b>💼 {job['title']}</b>\n"
+        message += f"📅 <i>Posted: {job['postedDate']}</i>\n"
+        message += f"🔗 <a href='{job['link']}'>View Application</a>\n\n"
         
         # Telegram has a limit of 4096 characters per message.
         # Simple splitting to avoid getting an error if the message is too long.
