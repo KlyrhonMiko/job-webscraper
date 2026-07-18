@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict
 import requests
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
+from bs4 import BeautifulSoup
 
 load_dotenv()
 
@@ -96,96 +96,87 @@ def scrape_jobs():
 
     print(f"Starting job search for: {', '.join(KEYWORDS)}")
     
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, channel="chrome")
-        context = browser.new_context(
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
-        )
-        page = context.new_page()
-
-        while should_continue:
-            url = f"https://www.onlinejobs.ph/jobseekers/jobsearch?q=" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}?q="
-            print(f"Navigating to {url}...")
+    while should_continue:
+        url = f"https://www.onlinejobs.ph/jobseekers/jobsearch?q=" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}?q="
+        print(f"Navigating to {url}...")
+        
+        if url in visited_urls:
+            print(f"Detected redirect or duplicate page at {url}. Stopping pagination.")
+            break
+        visited_urls.add(url)
+        
+        try:
+            r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'})
+            r.raise_for_status()
             
-            page.goto(url, wait_until='domcontentloaded')
+            soup = BeautifulSoup(r.text, 'html.parser')
+            job_rows = soup.select('.jobpost-cat-box')
             
-            resolved_url = page.url
-            if resolved_url in visited_urls:
-                print(f"Detected redirect or duplicate page at {resolved_url}. Stopping pagination.")
+            if not job_rows:
+                print("No jobs found on this page. Stopping pagination.")
                 break
-            visited_urls.add(resolved_url)
             
-            try:
-                page.wait_for_selector('.results', timeout=10000)
-                job_rows = page.query_selector_all('.jobpost-cat-box')
+            for row in job_rows:
+                # Parse posted date
+                date_element = row.select_one('p.fs-13 em')
+                posted_date = None
+                date_string = ''
+                if date_element:
+                    date_text = date_element.text
+                    match = re.search(r'Posted on (.*)', date_text)
+                    if match:
+                        date_string = match.group(1).strip()
+                        try:
+                            # Example: 2026-07-16 13:23:02
+                            dt_str = date_string.replace(' ', 'T') if ' ' in date_string else date_string
+                            posted_date = datetime.fromisoformat(dt_str)
+                        except ValueError:
+                            pass
                 
-                if not job_rows:
-                    print("No jobs found on this page. Stopping pagination.")
+                if posted_date and posted_date < one_week_ago:
+                    print(f"Found job posted on {posted_date.isoformat()}, which is older than 1 week. Stopping pagination.")
+                    should_continue = False
                     break
                 
-                for row in job_rows:
-                    # Parse posted date
-                    date_element = row.query_selector('p.fs-13 em')
-                    posted_date = None
-                    date_string = ''
-                    if date_element:
-                        date_text = date_element.inner_text()
-                        match = re.search(r'Posted on (.*)', date_text)
-                        if match:
-                            date_string = match.group(1).strip()
-                            try:
-                                # Example: 2026-07-16 13:23:02
-                                dt_str = date_string.replace(' ', 'T') if ' ' in date_string else date_string
-                                posted_date = datetime.fromisoformat(dt_str)
-                            except ValueError:
-                                pass
+                link_elements = row.select('a')
+                job_link_element = None
+                for el in link_elements:
+                    href = el.get('href')
+                    if href and '/jobseekers/job/' in href:
+                        job_link_element = el
+                        break
+                
+                if job_link_element:
+                    full_text = job_link_element.text.strip()
+                    title_text = full_text.split('\n')[0].strip()
+                    link = job_link_element.get('href') or ''
                     
-                    if posted_date and posted_date < one_week_ago:
-                        print(f"Found job posted on {posted_date.isoformat()}, which is older than 1 week. Stopping pagination.")
+                    full_link = link if link.startswith('http') else f"https://www.onlinejobs.ph{link}"
+                    
+                    if full_link in existing_links:
+                        print(f"Found already scraped job '{title_text}'. Stopping pagination.")
                         should_continue = False
                         break
                     
-                    link_elements = row.query_selector_all('a')
-                    job_link_element = None
-                    for el in link_elements:
-                        href = el.get_attribute('href')
-                        if href and '/jobseekers/job/' in href:
-                            job_link_element = el
-                            break
+                    title_lower = title_text.lower()
+                    if 'senior' in title_lower:
+                        continue
+                        
+                    matches_keyword = any(k.lower() in title_lower for k in KEYWORDS)
                     
-                    if job_link_element:
-                        full_text = job_link_element.inner_text()
-                        title_text = full_text.split('\n')[0].strip()
-                        link = job_link_element.get_attribute('href') or ''
-                        
-                        full_link = link if link.startswith('http') else f"https://www.onlinejobs.ph{link}"
-                        
-                        if full_link in existing_links:
-                            print(f"Found already scraped job '{title_text}'. Stopping pagination.")
-                            should_continue = False
-                            break
-                        
-                        title_lower = title_text.lower()
-                        if 'senior' in title_lower:
-                            continue
-                            
-                        matches_keyword = any(k.lower() in title_lower for k in KEYWORDS)
-                        
-                        if matches_keyword or not KEYWORDS:
-                            jobs_scraped.append({
-                                'title': title_text,
-                                'postedDate': date_string,
-                                'link': full_link
-                            })
+                    if matches_keyword or not KEYWORDS:
+                        jobs_scraped.append({
+                            'title': title_text,
+                            'postedDate': date_string,
+                            'link': full_link
+                        })
 
-            except Exception as e:
-                print(f"Error extracting jobs or reached end of pagination: {e}")
-                break
+        except Exception as e:
+            print(f"Error extracting jobs or reached end of pagination: {e}")
+            break
 
-            if should_continue:
-                offset += 30
-
-        browser.close()
+        if should_continue:
+            offset += 30
 
     # Deduplicate and sort
     for job in jobs_scraped:
