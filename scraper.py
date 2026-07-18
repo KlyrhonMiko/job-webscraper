@@ -38,10 +38,14 @@ def send_telegram_message(new_jobs: List[Dict]):
         print("Telegram bot token or chat ID is missing. Skipping Telegram notification.")
         return
 
+    if not new_jobs:
+        _post_to_telegram("🎯 <b>Daily Job Alert</b>\n<i>No new jobs found right now.</i>")
+        return
+
     # Build an HTML formatted message
     message = (
         f"🎯 <b>Daily Job Alert</b>\n"
-        f"<i>Found {len(new_jobs)} new opportunities today</i>\n\n"
+        f"<i>Found {len(new_jobs)} new opportunities right now</i>\n\n"
         f"➖➖➖➖➖➖➖➖➖➖\n\n"
     )
     for i, job in enumerate(new_jobs, 1):
@@ -210,6 +214,8 @@ def scrape_jobs():
         save_jobs(updated_jobs)
     else:
         print('No new jobs to save or notify.')
+        # Send Telegram message notifying no new jobs
+        send_telegram_message([])
 
 if __name__ == '__main__':
     try:

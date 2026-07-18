@@ -2,8 +2,8 @@ name: Run Job Scraper
 
 on:
   schedule:
-    # Run every day at 00:00 UTC (Adjust as needed)
-    - cron: '0 0 * * *'
+    # Run at 04:00 and 16:00 UTC (12:00 NN and 12:00 MN GMT+8)
+    - cron: '0 4,16 * * *'
   workflow_dispatch: # Allows you to run this manually from the Actions tab
 
 jobs:
