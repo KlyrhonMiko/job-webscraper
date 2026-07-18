@@ -45,8 +45,16 @@ def send_telegram_message(new_jobs: List[Dict]):
         f"➖➖➖➖➖➖➖➖➖➖\n\n"
     )
     for i, job in enumerate(new_jobs, 1):
+        formatted_date = job['postedDate']
+        try:
+            dt_str = formatted_date.replace(' ', 'T') if ' ' in formatted_date else formatted_date
+            dt = datetime.fromisoformat(dt_str)
+            formatted_date = dt.strftime("%B %d, %Y at %I:%M %p")
+        except ValueError:
+            pass
+            
         message += f"<b>💼 {job['title']}</b>\n"
-        message += f"📅 <i>Posted: {job['postedDate']}</i>\n"
+        message += f"📅 <i>Posted: {formatted_date}</i>\n"
         message += f"🔗 <a href='{job['link']}'>View Application</a>\n\n"
         
         # Telegram has a limit of 4096 characters per message.
@@ -89,7 +97,7 @@ def scrape_jobs():
     print(f"Starting job search for: {', '.join(KEYWORDS)}")
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, channel="chrome")
         context = browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
         )
