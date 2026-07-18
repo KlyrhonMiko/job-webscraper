@@ -1,10 +1,7 @@
 name: Run Job Scraper
 
 on:
-  schedule:
-    # Run at 04:30 and 16:30 UTC (12:30 PM and 12:30 AM GMT+8)
-    - cron: '30 4,16 * * *'
-  workflow_dispatch: # Allows you to run this manually from the Actions tab
+  workflow_dispatch: # Allows you to run this manually or via API dispatch
 
 jobs:
   scrape-jobs:
