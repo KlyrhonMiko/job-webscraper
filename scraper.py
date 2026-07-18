@@ -146,9 +146,15 @@ def scrape_jobs():
                         job_link_element = el
                         break
                 
-                if job_link_element:
-                    full_text = job_link_element.text.strip()
-                    title_text = full_text.split('\n')[0].strip()
+                title_elem = row.select_one('h4')
+                title_text = ''
+                if title_elem:
+                    # Remove any badges from the title text
+                    for badge in title_elem.select('.badge'):
+                        badge.extract()
+                    title_text = title_elem.get_text(strip=True)
+                
+                if job_link_element and title_text:
                     link = job_link_element.get('href') or ''
                     
                     full_link = link if link.startswith('http') else f"https://www.onlinejobs.ph{link}"
