@@ -44,20 +44,23 @@ def fetch_job_description(url: str) -> str:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
         }
+        cookie = os.getenv("ONLINEJOBS_COOKIE")
+        if cookie:
+            headers['Cookie'] = cookie
+
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-
-        # Instead of restricting to just the description block, extract all text from the main container
-        # to ensure we capture the top header with Wage/Salary, Hours, and Type of Work.
-        main_content = soup.select_one('.page-container') or soup.select_one('.container') or soup.body
-        if main_content:
-            text = main_content.get_text(separator='\n', strip=True)
+        
+        # Extract all text from the body to ensure we capture the top header with Wage/Salary,
+        # Hours, and Type of Work, as well as the main job description.
+        if soup.body:
+            text = soup.body.get_text(separator='\n', strip=True)
             # Remove excessive newlines
             text = '\n'.join([line for line in text.splitlines() if line.strip()])
-            return text[:4000] # Pass up to 4000 chars to Gemini
+            return text[:10000] # Pass up to 10000 chars to Gemini
 
-        return soup.get_text(separator='\n', strip=True)[:4000]
+        return soup.get_text(separator='\n', strip=True)[:10000]
     except Exception as e:
         print(f"Error fetching job description from {url}: {e}")
         return "Could not retrieve full job description."
