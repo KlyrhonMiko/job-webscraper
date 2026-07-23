@@ -21,6 +21,11 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write("🤖 Telegram Job Bot is live and running!".encode("utf-8"))
 
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.end_headers()
+
     def log_message(self, format, *args):
         pass
 
