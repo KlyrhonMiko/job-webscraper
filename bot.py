@@ -6,7 +6,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 from dotenv import load_dotenv
 from scraper import load_existing_jobs, fetch_job_description
-from ai_generator import generate_job_application, load_resume
+from ai_generator import generate_job_application, load_resume, generate_job_preview
 
 load_dotenv()
 
@@ -33,7 +33,6 @@ def start_health_check_server():
         server.serve_forever()
     except Exception as e:
         print(f"HTTP server error: {e}", flush=True)
-
 
 def self_ping_loop():
     """Pings self every 10 minutes if running on Render to prevent free web service from sleeping."""
@@ -72,6 +71,25 @@ def send_message(chat_id: str, text: str, parse_mode: str = "HTML"):
         else:
             print(f"Failed to send Telegram message: {e}")
 
+def get_latest_jobs():
+    """Fetches jobs directly from GitHub API to avoid Render deployment sync delays."""
+    try:
+        url = "https://api.github.com/repos/KlyrhonMiko/job-webscraper/contents/scraped_jobs.json"
+        headers = {"Accept": "application/vnd.github.v3.raw"}
+        # Adding a timestamp query to prevent any aggressive caching
+        res = requests.get(f"{url}?t={int(time.time())}", headers=headers, timeout=10)
+        if res.status_code == 200:
+            gh_jobs = res.json()
+            for idx, job in enumerate(gh_jobs, 1):
+                if 'id' not in job:
+                    job['id'] = idx
+            return gh_jobs
+    except Exception as e:
+        print(f"Failed to fetch jobs from GitHub API: {e}")
+    
+    # Fallback to local file if GitHub API fails or rate limits
+    return load_existing_jobs()
+
 def handle_apply(chat_id: str, job_id_str: str):
     """Fetches job description and generates application cover letter."""
     try:
@@ -80,7 +98,7 @@ def handle_apply(chat_id: str, job_id_str: str):
         send_message(chat_id, "⚠️ Invalid job number. Please send a valid number like <code>1</code> or <code>/apply 1</code>.")
         return
 
-    jobs = load_existing_jobs()
+    jobs = get_latest_jobs()
     selected_job = next((j for j in jobs if j.get("id") == job_id), None)
 
     if not selected_job:
@@ -109,9 +127,48 @@ def handle_apply(chat_id: str, job_id_str: str):
 
     send_message(chat_id, response)
 
+def handle_preview(chat_id: str, job_id_str: str):
+    """Fetches job description and generates a concise AI summary preview."""
+    try:
+        job_id = int(job_id_str)
+    except ValueError:
+        send_message(chat_id, "⚠️ Invalid job number. Please send a valid number like <code>/preview 1</code>.")
+        return
+
+    jobs = get_latest_jobs()
+    selected_job = next((j for j in jobs if j.get("id") == job_id), None)
+
+    if not selected_job:
+        if 1 <= job_id <= len(jobs):
+            selected_job = jobs[job_id - 1]
+
+    if not selected_job:
+        send_message(chat_id, f"❌ Job <b>#{job_id}</b> not found in saved jobs list. Use <code>/jobs</code> to view active jobs.")
+        return
+
+    job_title = selected_job['title']
+    job_url = selected_job['link']
+
+    send_message(chat_id, f"🔍 <b>Fetching description & extracting key requirements for Job #{job_id}:</b>\n<i>{job_title}</i>...")
+
+    description = fetch_job_description(job_url)
+    preview_msg = generate_job_preview(job_title, description)
+
+    response = (
+        f"🔍 <b>AI Job Preview: #{job_id}</b>\n"
+        f"<b>Role:</b> {job_title}\n"
+        f"<b>Link:</b> {job_url}\n"
+        f"➖➖➖➖➖➖➖➖➖➖\n\n"
+        f"{preview_msg}\n\n"
+        f"💡 <i>Reply with <b>/apply {job_id}</b> to generate a cover letter!</i>"
+    )
+
+    send_message(chat_id, response)
+
+
 def handle_list_jobs(chat_id: str):
     """Lists saved jobs with their IDs."""
-    jobs = load_existing_jobs()
+    jobs = get_latest_jobs()
     if not jobs:
         send_message(chat_id, "📭 No jobs currently saved. Run scraper.py to find jobs!")
         return
@@ -133,7 +190,8 @@ def handle_resume(chat_id: str):
 def handle_help(chat_id: str):
     msg = (
         "🤖 <b>Job Application Bot Commands</b>\n\n"
-        "• <b>Send any Job Number (e.g. 1)</b> or <code>/apply 1</code>: Generate AI job application message\n"
+        "• <b>Send a Job Number (e.g. 1)</b> or <code>/apply 1</code>: Generate AI job application message\n"
+        "• <code>/preview 1</code>: Generate a quick summary of experience & tech stack required\n"
         "• <code>/jobs</code> or <code>/list</code>: List saved jobs & numbers\n"
         "• <code>/resume</code>: View saved resume profile details\n"
         "• <code>/help</code>: Show this help menu\n"
@@ -159,6 +217,12 @@ def process_message(message: dict):
         handle_list_jobs(chat_id)
     elif text.startswith("/resume"):
         handle_resume(chat_id)
+    elif text.startswith("/preview"):
+        parts = text.split()
+        if len(parts) > 1:
+            handle_preview(chat_id, parts[1])
+        else:
+            send_message(chat_id, "Please specify a job number, e.g. <code>/preview 1</code>")
     elif text.startswith("/apply"):
         parts = text.split()
         if len(parts) > 1:
@@ -173,6 +237,7 @@ def process_message(message: dict):
             handle_apply(chat_id, cleaned)
         else:
             send_message(chat_id, "Unrecognized command. Send a job number (e.g., <code>1</code>) or <code>/jobs</code> to see available jobs.")
+
 
 def start_bot():
     if not TELEGRAM_BOT_TOKEN:

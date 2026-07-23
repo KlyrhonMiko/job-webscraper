@@ -14,6 +14,55 @@ def load_resume() -> str:
             print(f"Warning: Could not read {RESUME_FILE}: {e}")
     return "Full-Stack Web Developer skilled in Python, JavaScript, React, Node.js, and web application development."
 
+def generate_job_preview(job_title: str, job_description: str) -> str:
+    """
+    Generates a concise preview of the job description (requirements, experience, key tech) using Gemini AI.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    
+    prompt = f"""
+You are an expert technical recruiter. Analyze the following job description and provide a highly concise, scannable bullet-point summary.
+
+Job Title: {job_title}
+Job Description:
+{job_description}
+
+Please summarize using ONLY these 4 sections (keep bullet points very short, maximum 1-2 lines each):
+- ⏱️ **Schedule & Hours**: (e.g., Full-time, Part-time, 40 hrs/week, or specific timezones)
+- 🛠️ **Tech Stack & Tools**:
+- 🎓 **Experience & Requirements**:
+- 📋 **Key Responsibilities**:
+"""
+
+    if not api_key or api_key == "your_gemini_api_key_here":
+        # Fallback if no API key is supplied
+        preview = job_description[:500] + "..." if len(job_description) > 500 else job_description
+        return (
+            f"⚠️ <b>GEMINI_API_KEY Not Configured</b>\n"
+            f"Set <code>GEMINI_API_KEY</code> in your <code>.env</code> file for AI summarization.\n\n"
+            f"<b>Raw Preview:</b>\n<i>{preview}</i>"
+        )
+
+    try:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+            )
+            return response.text
+        except ImportError:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content(prompt)
+            return response.text
+    except Exception as e:
+        print(f"Error generating AI preview: {e}")
+        return f"❌ <b>Error generating preview with Gemini AI:</b>\n<code>{str(e)}</code>"
+
+
 def generate_job_application(job_title: str, job_description: str, job_url: str = "") -> str:
     """
     Generates a tailored job application message / cover letter using Google Gemini API.
@@ -44,7 +93,6 @@ Instructions:
 """
 
     if not api_key or api_key == "your_gemini_api_key_here":
-        # Fallback if no API key is supplied yet
         return (
             f"⚠️ <b>GEMINI_API_KEY Not Configured</b>\n"
             f"Please set <code>GEMINI_API_KEY</code> in your <code>.env</code> file to enable AI generation.\n\n"
@@ -62,7 +110,6 @@ Instructions:
         )
 
     try:
-        # Try new google-genai SDK first
         try:
             from google import genai
             client = genai.Client(api_key=api_key)
@@ -72,7 +119,6 @@ Instructions:
             )
             return response.text
         except ImportError:
-            # Fallback to legacy google-generativeai SDK if installed
             import google.generativeai as genai
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-1.5-flash')
