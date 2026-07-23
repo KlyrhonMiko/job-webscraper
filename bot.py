@@ -1,6 +1,8 @@
 import os
 import sys
 import time
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 from dotenv import load_dotenv
 from scraper import load_existing_jobs, fetch_job_description
@@ -10,6 +12,41 @@ load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    """Simple HTTP server to allow deploying as a Free Web Service on platforms like Render."""
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write("🤖 Telegram Job Bot is live and running!".encode("utf-8"))
+
+    def log_message(self, format, *args):
+        pass
+
+def start_health_check_server():
+    port = int(os.getenv("PORT", 8080))
+    try:
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+        print(f"🌐 Health check HTTP server running on port {port}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"HTTP server error: {e}")
+
+def self_ping_loop():
+    """Pings self every 10 minutes if running on Render to prevent free web service from sleeping."""
+    render_url = os.getenv("RENDER_EXTERNAL_URL")
+    if not render_url:
+        return
+
+    print(f"🔄 Self-ping keep-alive enabled for {render_url}")
+    while True:
+        time.sleep(600)  # Wait 10 minutes
+        try:
+            res = requests.get(render_url, timeout=10)
+            print(f"⚡ Keep-alive ping sent (Status: {res.status_code})")
+        except Exception as e:
+            print(f"Self-ping failed: {e}")
 
 def send_message(chat_id: str, text: str, parse_mode: str = "HTML"):
     """Sends a message to a specific Telegram chat ID."""
@@ -24,7 +61,6 @@ def send_message(chat_id: str, text: str, parse_mode: str = "HTML"):
         res = requests.post(url, json=payload, timeout=15)
         res.raise_for_status()
     except Exception as e:
-        # Fallback to plain text if HTML parsing fails
         if parse_mode == "HTML":
             payload["parse_mode"] = None
             try:
@@ -46,7 +82,6 @@ def handle_apply(chat_id: str, job_id_str: str):
     selected_job = next((j for j in jobs if j.get("id") == job_id), None)
 
     if not selected_job:
-        # Try 1-based index if id key is not found
         if 1 <= job_id <= len(jobs):
             selected_job = jobs[job_id - 1]
 
@@ -59,10 +94,7 @@ def handle_apply(chat_id: str, job_id_str: str):
 
     send_message(chat_id, f"⏳ <b>Fetching details & generating application for Job #{job_id}:</b>\n<i>{job_title}</i>...")
 
-    # Step 1: Scrape job description
     description = fetch_job_description(job_url)
-
-    # Step 2: Generate application using AI engine
     application_msg = generate_job_application(job_title, description, job_url)
 
     response = (
@@ -83,7 +115,6 @@ def handle_list_jobs(chat_id: str):
         return
 
     msg = "📋 <b>Recent Saved Jobs</b>\n\n"
-    # Show last 10 jobs
     for job in jobs[-10:]:
         jid = job.get('id', '?')
         msg += f"<b>#{jid}</b> - <a href='{job['link']}'>{job['title']}</a>\n"
@@ -116,7 +147,6 @@ def process_message(message: dict):
 
     print(f"Received message from chat {chat_id}: {text}")
 
-    # Optionally enforce chat ID restriction if TELEGRAM_CHAT_ID is set
     if TELEGRAM_CHAT_ID and chat_id != str(TELEGRAM_CHAT_ID):
         print(f"Ignoring message from unauthorized chat_id: {chat_id}")
         return
@@ -136,7 +166,6 @@ def process_message(message: dict):
     elif text.isdigit():
         handle_apply(chat_id, text)
     else:
-        # Check if user sent something like "apply 1" or "#1"
         cleaned = text.replace("#", "").replace("apply", "").strip()
         if cleaned.isdigit():
             handle_apply(chat_id, cleaned)
@@ -147,6 +176,12 @@ def start_bot():
     if not TELEGRAM_BOT_TOKEN:
         print("Error: TELEGRAM_BOT_TOKEN is missing in environment variables.")
         sys.exit(1)
+
+    # Start HTTP health check server
+    threading.Thread(target=start_health_check_server, daemon=True).start()
+
+    # Start self-ping loop to keep Render free tier awake
+    threading.Thread(target=self_ping_loop, daemon=True).start()
 
     print("🤖 Telegram Job Bot Listener active. Waiting for messages...")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
