@@ -30,7 +30,7 @@ Job Description:
 Please summarize using ONLY these 4 sections (keep bullet points very short, maximum 1-2 lines each):
 - ⏱️ **Schedule & Hours**: (e.g., Full-time, Part-time, 40 hrs/week, or specific timezones)
 - 🛠️ **Tech Stack & Tools**:
-- 🎓 **Experience & Requirements**:
+- 🎓 **Experience & Requirements**: (Must include required years of experience if specified)
 - 📋 **Key Responsibilities**:
 """
 
@@ -85,11 +85,12 @@ Job Information:
 {job_description}
 
 Instructions:
-1. Write a professional, personalized message ready to be sent to the hiring manager or posted on onlinejobs.ph.
-2. Align the applicant's skills directly with the specific requirements in the job description.
-3. Keep the tone enthusiastic, professional, and confident, avoiding generic buzzwords.
-4. Keep length around 150-250 words so it's punchy and easy to read.
-5. Include placeholders like [Your Name] or pull relevant info from the applicant profile if available.
+1. Write a highly professional and polished job application message (cover letter).
+2. DO NOT mention where the job was advertised or the platform name (e.g., never say "advertised on onlinejobs.ph").
+3. Align the applicant's skills directly with the specific requirements in the job description.
+4. Keep the tone enthusiastic, highly professional, and confident, avoiding generic buzzwords and informal language.
+5. Keep length around 150-250 words so it's punchy and easy to read.
+6. Include placeholders like [Your Name] or pull relevant info from the applicant profile if available.
 """
 
     if not api_key or api_key == "your_gemini_api_key_here":
