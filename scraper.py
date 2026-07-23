@@ -46,7 +46,9 @@ def fetch_job_description(url: str) -> str:
         }
         cookie = os.getenv("ONLINEJOBS_COOKIE")
         if cookie:
-            headers['Cookie'] = cookie
+            # Sanitize the cookie: remove any accidental newlines or carriage returns from copy-pasting
+            clean_cookie = cookie.replace('\n', '').replace('\r', '').strip()
+            headers['Cookie'] = clean_cookie
 
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
