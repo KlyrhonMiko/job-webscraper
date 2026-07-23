@@ -27,11 +27,17 @@ Job Title: {job_title}
 Job Description:
 {job_description}
 
-Please summarize using ONLY these 4 sections (keep bullet points very short, maximum 1-2 lines each):
-- ⏱️ **Schedule & Hours**: (e.g., Full-time, Part-time, 40 hrs/week, or specific timezones)
-- 🛠️ **Tech Stack & Tools**:
-- 🎓 **Experience & Requirements**: (Must include required years of experience if specified)
-- 📋 **Key Responsibilities**:
+Please summarize using ONLY these 5 sections (keep bullet points very short, maximum 1-2 lines each):
+- 💰 <b>Salary & Compensation</b>: (Extract wage/salary if mentioned)
+- ⏱️ <b>Schedule & Hours</b>: (e.g., Full-time, Part-time, 40 hrs/week, or specific timezones)
+- 🛠️ <b>Tech Stack & Tools</b>:
+- 🎓 <b>Experience & Requirements</b>: (Must include required years of experience if specified)
+- 📋 <b>Key Responsibilities</b>:
+
+FORMATTING RULES:
+- Use the • character for all bullet points.
+- Use <b>text</b> for bold text.
+- DO NOT use markdown asterisks (*) anywhere in your response.
 """
 
     if not api_key or api_key == "your_gemini_api_key_here":
@@ -91,6 +97,11 @@ Instructions:
 4. Keep the tone enthusiastic, highly professional, and confident, avoiding generic buzzwords and informal language.
 5. Keep length around 150-250 words so it's punchy and easy to read.
 6. Include placeholders like [Your Name] or pull relevant info from the applicant profile if available.
+
+FORMATTING RULES:
+- If you use bold text, use HTML tags: <b>text</b>
+- If you use bullet points, use the • character.
+- DO NOT use markdown asterisks (*) anywhere in your response.
 """
 
     if not api_key or api_key == "your_gemini_api_key_here":

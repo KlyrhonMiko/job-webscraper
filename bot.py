@@ -159,8 +159,7 @@ def handle_preview(chat_id: str, job_id_str: str):
         f"<b>Role:</b> {job_title}\n"
         f"<b>Link:</b> {job_url}\n"
         f"➖➖➖➖➖➖➖➖➖➖\n\n"
-        f"{preview_msg}\n\n"
-        f"💡 <i>Reply with <b>/apply {job_id}</b> to generate a cover letter!</i>"
+        f"{preview_msg}"
     )
 
     send_message(chat_id, response)
@@ -178,7 +177,6 @@ def handle_list_jobs(chat_id: str):
         jid = job.get('id', '?')
         msg += f"<b>#{jid}</b> - <a href='{job['link']}'>{job['title']}</a>\n"
 
-    msg += "\n💡 <i>Reply with a number (e.g. <b>1</b>) or <b>/apply 1</b> to generate an application cover letter!</i>"
     send_message(chat_id, msg)
 
 def handle_resume(chat_id: str):

@@ -48,17 +48,16 @@ def fetch_job_description(url: str) -> str:
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
 
-        # Locate job description content
-        desc_elem = soup.select_one('#job-description') or soup.select_one('.jobpost-cat-box') or soup.select_one('.desc') or soup.select_one('.job-details')
-        if desc_elem:
-            return desc_elem.get_text(separator='\n', strip=True)
+        # Instead of restricting to just the description block, extract all text from the main container
+        # to ensure we capture the top header with Wage/Salary, Hours, and Type of Work.
+        main_content = soup.select_one('.page-container') or soup.select_one('.container') or soup.body
+        if main_content:
+            text = main_content.get_text(separator='\n', strip=True)
+            # Remove excessive newlines
+            text = '\n'.join([line for line in text.splitlines() if line.strip()])
+            return text[:4000] # Pass up to 4000 chars to Gemini
 
-        # Fallback to key text containers
-        paragraphs = [p.get_text(strip=True) for p in soup.find_all(['p', 'li']) if len(p.get_text(strip=True)) > 20]
-        if paragraphs:
-            return '\n'.join(paragraphs)
-
-        return soup.get_text(separator='\n', strip=True)[:2000]
+        return soup.get_text(separator='\n', strip=True)[:4000]
     except Exception as e:
         print(f"Error fetching job description from {url}: {e}")
         return "Could not retrieve full job description."
