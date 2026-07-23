@@ -20,7 +20,12 @@ def load_existing_jobs() -> List[Dict]:
         return []
     try:
         with open(JOBS_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            jobs = json.load(f)
+            # Ensure all loaded jobs have an 'id'
+            for idx, job in enumerate(jobs, 1):
+                if 'id' not in job:
+                    job['id'] = idx
+            return jobs
     except Exception as e:
         print(f"Warning: Error reading {JOBS_FILE}: {e}")
         return []
@@ -33,6 +38,31 @@ def save_jobs(jobs: List[Dict]):
     except Exception as e:
         print(f"Error saving jobs: {e}")
 
+def fetch_job_description(url: str) -> str:
+    """Scrapes full job description text from an onlinejobs.ph job detail page."""
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Locate job description content
+        desc_elem = soup.select_one('#job-description') or soup.select_one('.jobpost-cat-box') or soup.select_one('.desc') or soup.select_one('.job-details')
+        if desc_elem:
+            return desc_elem.get_text(separator='\n', strip=True)
+
+        # Fallback to key text containers
+        paragraphs = [p.get_text(strip=True) for p in soup.find_all(['p', 'li']) if len(p.get_text(strip=True)) > 20]
+        if paragraphs:
+            return '\n'.join(paragraphs)
+
+        return soup.get_text(separator='\n', strip=True)[:2000]
+    except Exception as e:
+        print(f"Error fetching job description from {url}: {e}")
+        return "Could not retrieve full job description."
+
 def send_telegram_message(new_jobs: List[Dict]):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("Telegram bot token or chat ID is missing. Skipping Telegram notification.")
@@ -42,13 +72,13 @@ def send_telegram_message(new_jobs: List[Dict]):
         _post_to_telegram("🎯 <b>Daily Job Alert</b>\n<i>No new jobs found right now.</i>")
         return
 
-    # Build an HTML formatted message
     message = (
         f"🎯 <b>Daily Job Alert</b>\n"
         f"<i>Found {len(new_jobs)} new opportunities right now</i>\n\n"
         f"➖➖➖➖➖➖➖➖➖➖\n\n"
     )
     for i, job in enumerate(new_jobs, 1):
+        job_id = job.get('id', i)
         formatted_date = job['postedDate']
         try:
             dt_str = formatted_date.replace(' ', 'T') if ' ' in formatted_date else formatted_date
@@ -56,18 +86,17 @@ def send_telegram_message(new_jobs: List[Dict]):
             formatted_date = dt.strftime("%B %d, %Y at %I:%M %p")
         except ValueError:
             pass
-            
-        message += f"<b>💼 {job['title']}</b>\n"
+
+        message += f"<b>#{job_id} 💼 {job['title']}</b>\n"
         message += f"📅 <i>Posted: {formatted_date}</i>\n"
         message += f"🔗 <a href='{job['link']}'>View Application</a>\n\n"
-        
-        # Telegram has a limit of 4096 characters per message.
-        # Simple splitting to avoid getting an error if the message is too long.
-        if len(message) > 3500:
+
+        if len(message) > 3400:
             _post_to_telegram(message)
             message = ""
 
     if message:
+        message += "\n💡 <i>Reply with a job number (e.g. <b>1</b> or <b>/apply 1</b>) to generate an AI cover letter!</i>"
         _post_to_telegram(message)
 
 def _post_to_telegram(message: str):
@@ -88,40 +117,39 @@ def _post_to_telegram(message: str):
 def scrape_jobs():
     existing_jobs = load_existing_jobs()
     existing_links = {job['link'] for job in existing_jobs}
-    
+
     new_jobs = []
     repeated_jobs = []
     jobs_scraped = []
-    
+
     one_week_ago = datetime.now() - timedelta(days=7)
     visited_urls = set()
     offset = 0
     should_continue = True
 
     print(f"Starting job search for: {', '.join(KEYWORDS)}")
-    
+
     while should_continue:
         url = f"https://www.onlinejobs.ph/jobseekers/jobsearch?q=" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}?q="
         print(f"Navigating to {url}...")
-        
+
         if url in visited_urls:
             print(f"Detected redirect or duplicate page at {url}. Stopping pagination.")
             break
         visited_urls.add(url)
-        
+
         try:
             r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'})
             r.raise_for_status()
-            
+
             soup = BeautifulSoup(r.text, 'html.parser')
             job_rows = soup.select('.jobpost-cat-box')
-            
+
             if not job_rows:
                 print("No jobs found on this page. Stopping pagination.")
                 break
-            
+
             for row in job_rows:
-                # Parse posted date
                 date_element = row.select_one('p.fs-13 em')
                 posted_date = None
                 date_string = ''
@@ -131,17 +159,16 @@ def scrape_jobs():
                     if match:
                         date_string = match.group(1).strip()
                         try:
-                            # Example: 2026-07-16 13:23:02
                             dt_str = date_string.replace(' ', 'T') if ' ' in date_string else date_string
                             posted_date = datetime.fromisoformat(dt_str)
                         except ValueError:
                             pass
-                
+
                 if posted_date and posted_date < one_week_ago:
                     print(f"Found job posted on {posted_date.isoformat()}, which is older than 1 week. Stopping pagination.")
                     should_continue = False
                     break
-                
+
                 link_elements = row.select('a')
                 job_link_element = None
                 for el in link_elements:
@@ -149,31 +176,29 @@ def scrape_jobs():
                     if href and '/jobseekers/job/' in href:
                         job_link_element = el
                         break
-                
+
                 title_elem = row.select_one('h4')
                 title_text = ''
                 if title_elem:
-                    # Remove any badges from the title text
                     for badge in title_elem.select('.badge'):
                         badge.extract()
                     title_text = title_elem.get_text(strip=True)
-                
+
                 if job_link_element and title_text:
                     link = job_link_element.get('href') or ''
-                    
                     full_link = link if link.startswith('http') else f"https://www.onlinejobs.ph{link}"
-                    
+
                     if full_link in existing_links:
                         print(f"Found already scraped job '{title_text}'. Stopping pagination.")
                         should_continue = False
                         break
-                    
+
                     title_lower = title_text.lower()
                     if 'senior' in title_lower:
                         continue
-                        
+
                     matches_keyword = any(k.lower() in title_lower for k in KEYWORDS)
-                    
+
                     if matches_keyword or not KEYWORDS:
                         jobs_scraped.append({
                             'title': title_text,
@@ -188,11 +213,14 @@ def scrape_jobs():
         if should_continue:
             offset += 30
 
-    # Deduplicate and sort
+    # Deduplicate and assign IDs
+    next_id = max([j.get('id', 0) for j in existing_jobs], default=0) + 1
     for job in jobs_scraped:
         if job['link'] in existing_links:
             repeated_jobs.append(job)
         else:
+            job['id'] = next_id
+            next_id += 1
             new_jobs.append(job)
             existing_links.add(job['link'])
 
@@ -200,21 +228,18 @@ def scrape_jobs():
 
     if new_jobs:
         print('\n--- NEW JOB RESULTS ---')
-        for i, job in enumerate(new_jobs, 1):
-            print(f"\n[{i}] [NEW] {job['title']}")
+        for job in new_jobs:
+            print(f"\n[#{job['id']}] [NEW] {job['title']}")
             print(f"Posted:   {job['postedDate']}")
             print(f"Link:     {job['link']}")
         print('\n-------------------\n')
-        
-        # Send Telegram message for new jobs
+
         send_telegram_message(new_jobs)
 
-        # Update database
         updated_jobs = existing_jobs + new_jobs
         save_jobs(updated_jobs)
     else:
         print('No new jobs to save or notify.')
-        # Send Telegram message notifying no new jobs
         send_telegram_message([])
 
 if __name__ == '__main__':

@@ -1,0 +1,26 @@
+Klyrhon Miko R. Aurel
+aurelklyrhonmiko@gmail.com | +63936 109 0745 | klyrhon.tech | github.com/KlyrhonMiko 
+I'm an aspiring software engineer with a passion for creating elegant, user-friendly web applications. With a strong foundation in both frontend and backend technologies, I bring ideas to life through clean code and thoughtful design. 
+
+Skills 
+Frontend: React, Next.js, TypeScript, HTML, CSS, Tailwind CSS 
+Backend: Node.js, Express, FastAPI
+DevOps & Tools:Docker, Git
+Experience
+Freelance 
+Full Stack Developer 
+2025 - Present 
+Built modular UI components using React and Tailwind CSS 
+Optimized page load times through code-splitting and lazy loading 
+Built enterprise grade systems for companie 
+Projects
+P.A.C.E (Pasig Alumni Career & Employability) 
+Github: https://github.com/KlyrhonMiko/pace 
+Developed a comprehensive career platform to connect alumni with highly curated employment opportunities.
+Engineered a dashboard providing institutions with actionable insights and real-time analytics on alumni employability.
+Implemented robust data tracking and visualization to monitor graduate career trajectories and optimize institutional reporting.
+Koin 
+Github: https://github.com/KlyrhonMiko/koin
+Developed an offline-first personal finance mobile application using Flutter, enabling seamless multi-account management and reliable local data storage.
+Integrated Natural Language Processing (NLP) and voice recognition to allow users to quickly and intuitively log expenses hands-free.
+Designed a modern, responsive UI featuring interactive data visualizations to give users clear, actionable insights into their financial habits. 
