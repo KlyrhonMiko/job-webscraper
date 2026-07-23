@@ -25,13 +25,15 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         pass
 
 def start_health_check_server():
-    port = int(os.getenv("PORT", 8080))
+    # Render uses port 10000 by default, fallback to 10000 if PORT env var is missing
+    port = int(os.environ.get("PORT", 10000))
     try:
         server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-        print(f"🌐 Health check HTTP server running on port {port}")
+        print(f"🌐 Health check HTTP server running on port {port}", flush=True)
         server.serve_forever()
     except Exception as e:
-        print(f"HTTP server error: {e}")
+        print(f"HTTP server error: {e}", flush=True)
+
 
 def self_ping_loop():
     """Pings self every 10 minutes if running on Render to prevent free web service from sleeping."""
@@ -174,7 +176,7 @@ def process_message(message: dict):
 
 def start_bot():
     if not TELEGRAM_BOT_TOKEN:
-        print("Error: TELEGRAM_BOT_TOKEN is missing in environment variables.")
+        print("Error: TELEGRAM_BOT_TOKEN is missing in environment variables.", flush=True)
         sys.exit(1)
 
     # Start HTTP health check server
@@ -183,7 +185,7 @@ def start_bot():
     # Start self-ping loop to keep Render free tier awake
     threading.Thread(target=self_ping_loop, daemon=True).start()
 
-    print("🤖 Telegram Job Bot Listener active. Waiting for messages...")
+    print("🤖 Telegram Job Bot Listener active. Waiting for messages...", flush=True)
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates"
     offset = 0
 
