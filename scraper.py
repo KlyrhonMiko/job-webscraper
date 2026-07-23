@@ -96,7 +96,6 @@ def send_telegram_message(new_jobs: List[Dict]):
             message = ""
 
     if message:
-        message += "\n💡 <i>Reply with a job number (e.g. <b>1</b> or <b>/apply 1</b>) to generate an AI cover letter!</i>"
         _post_to_telegram(message)
 
 def _post_to_telegram(message: str):
