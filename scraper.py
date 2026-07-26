@@ -9,7 +9,18 @@ from bs4 import BeautifulSoup
 
 load_dotenv()
 
-KEYWORDS = ['web developer', 'junior developer', 'developer', 'software engineer', 'react', 'node', 'python', 'programmer']
+KEYWORDS = [
+    'web developer', 'ai assisted', 'ai developer', 'front end', 'frontend',
+    'back end', 'backend', 'full stack', 'fullstack', 'junior', 'entry level',
+    'fresher', 'intern', 'software developer', 'software engineer', 'react',
+    'node', 'python', 'javascript', 'programmer'
+]
+EXCLUDE_KEYWORDS = [
+    'senior', 'sr', 'lead', 'manager', 'director', 'head', 'principal', 
+    'staff', 'mid', 'mid-level', 'intermediate', 'expert', 'experienced', 
+    'supervisor', 'vp', 'architect', 'master', 'specialist', 'executive',
+    'sysadmin', 'admin', 'administrator'
+]
 JOBS_FILE = 'scraped_jobs.json'
 
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -197,7 +208,14 @@ def scrape_jobs():
                         break
 
                     title_lower = title_text.lower()
-                    if 'senior' in title_lower:
+                    
+                    is_excluded = False
+                    for ex in EXCLUDE_KEYWORDS:
+                        if re.search(rf'\b{re.escape(ex)}\b', title_lower):
+                            is_excluded = True
+                            break
+                    
+                    if is_excluded:
                         continue
 
                     matches_keyword = any(k.lower() in title_lower for k in KEYWORDS)
