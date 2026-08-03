@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import base64
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
@@ -191,11 +192,42 @@ def handle_resume(chat_id: str):
     send_message(chat_id, msg)
 
 def handle_reset(chat_id: str):
-    """Erases the saved jobs list."""
+    """Erases the saved jobs list locally and on GitHub if token is provided."""
     try:
-        from scraper import save_jobs
-        save_jobs([])
-        send_message(chat_id, "✅ <b>Job list has been successfully reset!</b>\n<i>(Note: If this bot runs in the cloud, you may need to commit the empty list to your repository.)</i>")
+        github_token = os.getenv("GITHUB_TOKEN")
+        github_url = "https://api.github.com/repos/KlyrhonMiko/job-webscraper/contents/scraped_jobs.json"
+        
+        if github_token:
+            headers = {
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json"
+            }
+            res = requests.get(github_url, headers=headers, timeout=10)
+            
+            if res.status_code == 200:
+                file_info = res.json()
+                sha = file_info['sha']
+                
+                empty_content = base64.b64encode(b"[]").decode('utf-8')
+                put_data = {
+                    "message": "Reset job list via Telegram Bot",
+                    "content": empty_content,
+                    "sha": sha
+                }
+                put_res = requests.put(github_url, headers=headers, json=put_data, timeout=10)
+                put_res.raise_for_status()
+                
+                from scraper import save_jobs
+                save_jobs([])
+                
+                send_message(chat_id, "✅ <b>Job list successfully reset on GitHub and locally!</b>")
+            else:
+                send_message(chat_id, f"⚠️ <b>Failed to fetch file from GitHub:</b> HTTP {res.status_code}")
+        else:
+            from scraper import save_jobs
+            save_jobs([])
+            send_message(chat_id, "✅ <b>Local job list reset!</b>\n⚠️ <i>GITHUB_TOKEN not found in .env, so it was not cleared on GitHub.</i>")
+            
     except Exception as e:
         send_message(chat_id, f"❌ <b>Error resetting job list:</b>\n<code>{e}</code>")
 
