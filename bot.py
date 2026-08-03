@@ -82,6 +82,10 @@ def get_latest_jobs():
     try:
         url = "https://api.github.com/repos/KlyrhonMiko/job-webscraper/contents/scraped_jobs.json"
         headers = {"Accept": "application/vnd.github.v3.raw"}
+        github_token = os.getenv("GITHUB_TOKEN")
+        if github_token:
+            headers["Authorization"] = f"Bearer {github_token}"
+
         # Adding a timestamp query to prevent any aggressive caching
         res = requests.get(f"{url}?t={int(time.time())}", headers=headers, timeout=10)
         if res.status_code == 200:
@@ -193,13 +197,16 @@ def handle_resume(chat_id: str):
 
 def handle_reset(chat_id: str):
     """Erases the saved jobs list locally and on GitHub if token is provided."""
-    try:
-        github_token = os.getenv("GITHUB_TOKEN")
-        github_url = "https://api.github.com/repos/KlyrhonMiko/job-webscraper/contents/scraped_jobs.json"
-        
-        if github_token:
+    github_token = os.getenv("GITHUB_TOKEN")
+    github_url = "https://api.github.com/repos/KlyrhonMiko/job-webscraper/contents/scraped_jobs.json"
+    
+    github_success = False
+    github_error_detail = None
+
+    if github_token:
+        try:
             headers = {
-                "Authorization": f"token {github_token}",
+                "Authorization": f"Bearer {github_token}",
                 "Accept": "application/vnd.github.v3+json"
             }
             res = requests.get(github_url, headers=headers, timeout=10)
@@ -215,21 +222,42 @@ def handle_reset(chat_id: str):
                     "sha": sha
                 }
                 put_res = requests.put(github_url, headers=headers, json=put_data, timeout=10)
-                put_res.raise_for_status()
-                
-                from scraper import save_jobs
-                save_jobs([])
-                
-                send_message(chat_id, "✅ <b>Job list successfully reset on GitHub and locally!</b>")
+                if put_res.status_code in (200, 201):
+                    github_success = True
+                elif put_res.status_code == 403:
+                    github_error_detail = "403 Forbidden (Check GITHUB_TOKEN has write/repo permissions)"
+                else:
+                    github_error_detail = f"HTTP {put_res.status_code}"
             else:
-                send_message(chat_id, f"⚠️ <b>Failed to fetch file from GitHub:</b> HTTP {res.status_code}")
-        else:
-            from scraper import save_jobs
-            save_jobs([])
-            send_message(chat_id, "✅ <b>Local job list reset!</b>\n⚠️ <i>GITHUB_TOKEN not found in .env, so it was not cleared on GitHub.</i>")
+                github_error_detail = f"GET HTTP {res.status_code}"
+        except Exception as e:
+            github_error_detail = str(e)
             
-    except Exception as e:
-        send_message(chat_id, f"❌ <b>Error resetting job list:</b>\n<code>{e}</code>")
+    # Always reset local jobs file
+    try:
+        from scraper import save_jobs
+        save_jobs([])
+    except Exception as local_err:
+        send_message(chat_id, f"❌ <b>Error clearing local job list:</b>\n<code>{local_err}</code>")
+        return
+
+    # Notify user with clear status
+    if github_token:
+        if github_success:
+            send_message(chat_id, "✅ <b>Job list successfully reset on GitHub and locally!</b>")
+        else:
+            send_message(
+                chat_id,
+                f"✅ <b>Local job list reset!</b>\n"
+                f"⚠️ <b>GitHub update failed:</b> <code>{github_error_detail}</code>\n\n"
+                f"💡 <i>Tip: Ensure your GITHUB_TOKEN has <b>repo</b> scope or <b>Contents: Read & write</b> permissions.</i>"
+            )
+    else:
+        send_message(
+            chat_id, 
+            "✅ <b>Local job list reset!</b>\n"
+            "⚠️ <i>GITHUB_TOKEN not set in .env, so GitHub file was not cleared.</i>"
+        )
 
 def handle_help(chat_id: str):
     msg = (
