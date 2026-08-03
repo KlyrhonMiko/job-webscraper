@@ -190,6 +190,15 @@ def handle_resume(chat_id: str):
     msg = f"📄 <b>Current Resume Profile Context (resume.txt):</b>\n\n<code>{resume_text}</code>\n\n💡 <i>Edit <b>resume.txt</b> in your project folder to update your skills & background.</i>"
     send_message(chat_id, msg)
 
+def handle_reset(chat_id: str):
+    """Erases the saved jobs list."""
+    try:
+        from scraper import save_jobs
+        save_jobs([])
+        send_message(chat_id, "✅ <b>Job list has been successfully reset!</b>\n<i>(Note: If this bot runs in the cloud, you may need to commit the empty list to your repository.)</i>")
+    except Exception as e:
+        send_message(chat_id, f"❌ <b>Error resetting job list:</b>\n<code>{e}</code>")
+
 def handle_help(chat_id: str):
     msg = (
         "🤖 <b>Job Application Bot Commands</b>\n\n"
@@ -197,6 +206,7 @@ def handle_help(chat_id: str):
         "• <code>/preview 1</code>: Generate a quick summary of experience & tech stack required\n"
         "• <code>/jobs</code> or <code>/list</code>: List saved jobs & numbers\n"
         "• <code>/resume</code>: View saved resume profile details\n"
+        "• <code>/reset</code> or <code>/clear</code>: Erase all saved jobs\n"
         "• <code>/help</code>: Show this help menu\n"
     )
     send_message(chat_id, msg)
@@ -220,6 +230,8 @@ def process_message(message: dict):
         handle_list_jobs(chat_id)
     elif text.startswith("/resume"):
         handle_resume(chat_id)
+    elif text.startswith("/reset") or text.startswith("/clear"):
+        handle_reset(chat_id)
     elif text.startswith("/preview"):
         parts = text.split()
         if len(parts) > 1:
