@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,24 +50,31 @@ FORMATTING RULES:
             f"<b>Raw Preview:</b>\n<i>{preview}</i>"
         )
 
-    try:
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            from google import genai
-            client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-            )
-            return response.text
-        except ImportError:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
-            return response.text
-    except Exception as e:
-        print(f"Error generating AI preview: {e}")
-        return f"❌ <b>Error generating preview with Gemini AI:</b>\n<code>{str(e)}</code>"
+            try:
+                from google import genai
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt,
+                )
+                return response.text
+            except ImportError:
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                response = model.generate_content(prompt)
+                return response.text
+        except Exception as e:
+            error_str = str(e)
+            if "503" in error_str or "UNAVAILABLE" in error_str:
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s...
+                    continue
+            print(f"Error generating AI preview: {e}")
+            return f"❌ <b>Error generating preview with Gemini AI:</b>\n<code>{error_str}</code>"
 
 
 def generate_job_application(job_title: str, job_description: str, job_url: str = "") -> str:
@@ -121,21 +129,28 @@ FORMATTING RULES:
             f"Best regards,\n[Your Name]"
         )
 
-    try:
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            from google import genai
-            client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-            )
-            return response.text
-        except ImportError:
-            import google.generativeai as genai
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            response = model.generate_content(prompt)
-            return response.text
-    except Exception as e:
-        print(f"Error generating AI application: {e}")
-        return f"❌ <b>Error generating application message with Gemini AI:</b>\n<code>{str(e)}</code>"
+            try:
+                from google import genai
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt,
+                )
+                return response.text
+            except ImportError:
+                import google.generativeai as genai
+                genai.configure(api_key=api_key)
+                model = genai.GenerativeModel('gemini-1.5-flash')
+                response = model.generate_content(prompt)
+                return response.text
+        except Exception as e:
+            error_str = str(e)
+            if "503" in error_str or "UNAVAILABLE" in error_str:
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff: 1s, 2s...
+                    continue
+            print(f"Error generating AI application: {e}")
+            return f"❌ <b>Error generating application message with Gemini AI:</b>\n<code>{error_str}</code>"
