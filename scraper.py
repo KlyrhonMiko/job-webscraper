@@ -136,103 +136,116 @@ def scrape_jobs():
     repeated_jobs = []
     jobs_scraped = []
 
-    one_week_ago = datetime.now() - timedelta(days=7)
-    visited_urls = set()
-    offset = 0
-    should_continue = True
+    one_day_ago = datetime.now() - timedelta(days=1)
 
     print(f"Starting job search for: {', '.join(KEYWORDS)}")
 
-    while should_continue:
-        url = f"https://www.onlinejobs.ph/jobseekers/jobsearch?q=" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}?q="
-        print(f"Navigating to {url}...")
+    search_queries = [None] + KEYWORDS
+    for query in search_queries:
+        if query is None:
+            print("\n--- Scraping main feed ---")
+        else:
+            print(f"\n--- Scraping for keyword: {query} ---")
 
-        if url in visited_urls:
-            print(f"Detected redirect or duplicate page at {url}. Stopping pagination.")
-            break
-        visited_urls.add(url)
+        visited_urls = set()
+        offset = 0
+        should_continue = True
 
-        try:
-            r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'})
-            r.raise_for_status()
+        while should_continue:
+            if query is None:
+                url = f"https://www.onlinejobs.ph/jobseekers/jobsearch?q=" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}?q="
+            else:
+                formatted_kw = query.replace(' ', '+')
+                url = f"https://www.onlinejobs.ph/jobseekers/jobsearch?jobkeyword={formatted_kw}" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}?jobkeyword={formatted_kw}"
 
-            soup = BeautifulSoup(r.text, 'html.parser')
-            job_rows = soup.select('.jobpost-cat-box')
+            print(f"Navigating to {url}...")
 
-            if not job_rows:
-                print("No jobs found on this page. Stopping pagination.")
+            if url in visited_urls:
+                print(f"Detected redirect or duplicate page at {url}. Stopping pagination.")
                 break
+            visited_urls.add(url)
 
-            for row in job_rows:
-                date_element = row.select_one('p.fs-13 em')
-                posted_date = None
-                date_string = ''
-                if date_element:
-                    date_text = date_element.text
-                    match = re.search(r'Posted on (.*)', date_text)
-                    if match:
-                        date_string = match.group(1).strip()
-                        try:
-                            dt_str = date_string.replace(' ', 'T') if ' ' in date_string else date_string
-                            posted_date = datetime.fromisoformat(dt_str)
-                        except ValueError:
-                            pass
+            try:
+                r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'})
+                r.raise_for_status()
 
-                if posted_date and posted_date < one_week_ago:
-                    print(f"Found job posted on {posted_date.isoformat()}, which is older than 1 week. Stopping pagination.")
-                    should_continue = False
+                soup = BeautifulSoup(r.text, 'html.parser')
+                job_rows = soup.select('.jobpost-cat-box')
+
+                if not job_rows:
+                    print("No jobs found on this page. Stopping pagination.")
                     break
 
-                link_elements = row.select('a')
-                job_link_element = None
-                for el in link_elements:
-                    href = el.get('href')
-                    if href and '/jobseekers/job/' in href:
-                        job_link_element = el
-                        break
+                for row in job_rows:
+                    date_element = row.select_one('p.fs-13 em')
+                    posted_date = None
+                    date_string = ''
+                    if date_element:
+                        date_text = date_element.text
+                        match = re.search(r'Posted on (.*)', date_text)
+                        if match:
+                            date_string = match.group(1).strip()
+                            try:
+                                dt_str = date_string.replace(' ', 'T') if ' ' in date_string else date_string
+                                posted_date = datetime.fromisoformat(dt_str)
+                            except ValueError:
+                                pass
 
-                title_elem = row.select_one('h4')
-                title_text = ''
-                if title_elem:
-                    for badge in title_elem.select('.badge'):
-                        badge.extract()
-                    title_text = title_elem.get_text(strip=True)
-
-                if job_link_element and title_text:
-                    link = job_link_element.get('href') or ''
-                    full_link = link if link.startswith('http') else f"https://www.onlinejobs.ph{link}"
-
-                    if full_link in existing_links:
-                        print(f"Found already scraped job '{title_text}'. Stopping pagination.")
+                    if posted_date and posted_date < one_day_ago:
+                        print(f"Found job posted on {posted_date.isoformat()}, which is older than 1 day. Stopping pagination.")
                         should_continue = False
                         break
 
-                    title_lower = title_text.lower()
-                    
-                    is_excluded = False
-                    for ex in EXCLUDE_KEYWORDS:
-                        if re.search(rf'\b{re.escape(ex)}\b', title_lower):
-                            is_excluded = True
+                    link_elements = row.select('a')
+                    job_link_element = None
+                    for el in link_elements:
+                        href = el.get('href')
+                        if href and '/jobseekers/job/' in href:
+                            job_link_element = el
                             break
-                    
-                    if is_excluded:
-                        continue
 
-                    matches_keyword = any(k.lower() in title_lower for k in KEYWORDS)
+                    title_elem = row.select_one('h4')
+                    title_text = ''
+                    if title_elem:
+                        for badge in title_elem.select('.badge'):
+                            badge.extract()
+                        title_text = title_elem.get_text(strip=True)
 
-                    if matches_keyword or not KEYWORDS:
-                        jobs_scraped.append({
-                            'title': title_text,
-                            'postedDate': date_string,
-                            'link': full_link
-                        })
+                    if job_link_element and title_text:
+                        link = job_link_element.get('href') or ''
+                        full_link = link if link.startswith('http') else f"https://www.onlinejobs.ph{link}"
 
-        except Exception as e:
-            print(f"Error extracting jobs or reached end of pagination: {e}")
-            break
+                        if full_link in existing_links:
+                            print(f"Found already scraped job '{title_text}'. Stopping pagination.")
+                            should_continue = False
+                            break
 
-        if should_continue:
-            offset += 30
+                        title_lower = title_text.lower()
+                        
+                        is_excluded = False
+                        for ex in EXCLUDE_KEYWORDS:
+                            if re.search(rf'\b{re.escape(ex)}\b', title_lower):
+                                is_excluded = True
+                                break
+                        
+                        if is_excluded:
+                            continue
+
+                        matches_keyword = any(k.lower() in title_lower for k in KEYWORDS)
+
+                        if matches_keyword or not KEYWORDS:
+                            jobs_scraped.append({
+                                'title': title_text,
+                                'postedDate': date_string,
+                                'link': full_link
+                            })
+
+            except Exception as e:
+                print(f"Error extracting jobs or reached end of pagination: {e}")
+                break
+
+            if should_continue:
+                offset += 30
 
     # Deduplicate and assign IDs
     next_id = max([j.get('id', 0) for j in existing_jobs], default=0) + 1
