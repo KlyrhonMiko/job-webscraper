@@ -10,11 +10,15 @@ from bs4 import BeautifulSoup
 load_dotenv()
 
 KEYWORDS = [
-    'web developer', 'ai assisted', 'ai developer', 'front end', 'frontend',
-    'back end', 'backend', 'full stack', 'fullstack', 'junior', 'entry level',
-    'fresher', 'intern', 'software developer', 'software engineer', 'react',
-    'node', 'python', 'javascript', 'programmer'
+    'junior developer', 'junior web developer', 'junior software developer',
+    'junior frontend', 'junior backend', 'junior fullstack', 'junior full stack',
+    'entry level developer', 'entry level programmer', 'fresher developer',
+    'web developer', 'frontend developer', 'backend developer',
+    'full stack developer', 'software developer', 'react developer',
+    'node developer', 'python developer', 'javascript developer'
 ]
+# GIG / PART-TIME filter params appended to every search URL
+JOB_TYPE_PARAMS = 'skill_tags=&gig=on&partTime=on&isFromJobsearchForm=1'
 EXCLUDE_KEYWORDS = [
     'senior', 'sr', 'lead', 'manager', 'director', 'head', 'principal', 
     'staff', 'mid', 'mid-level', 'intermediate', 'expert', 'experienced', 
@@ -153,10 +157,12 @@ def scrape_jobs():
 
         while should_continue:
             if query is None:
-                url = f"https://www.onlinejobs.ph/jobseekers/jobsearch?q=" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}?q="
+                base = f"https://www.onlinejobs.ph/jobseekers/jobsearch" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}"
+                url = f"{base}?{JOB_TYPE_PARAMS}"
             else:
                 formatted_kw = query.replace(' ', '+')
-                url = f"https://www.onlinejobs.ph/jobseekers/jobsearch?jobkeyword={formatted_kw}" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}?jobkeyword={formatted_kw}"
+                base = f"https://www.onlinejobs.ph/jobseekers/jobsearch" if offset == 0 else f"https://www.onlinejobs.ph/jobseekers/jobsearch/{offset}"
+                url = f"{base}?jobkeyword={formatted_kw}&{JOB_TYPE_PARAMS}"
 
             print(f"Navigating to {url}...")
 
@@ -234,6 +240,15 @@ def scrape_jobs():
                         matches_keyword = any(k.lower() in title_lower for k in KEYWORDS)
 
                         if matches_keyword or not KEYWORDS:
+                            # Only keep jobs posted within the last 24 hours.
+                            # Skip if date couldn't be parsed (posted_date is None)
+                            # or if the posting is older than one_day_ago.
+                            if not posted_date:
+                                print(f"Skipping '{title_text}': could not parse posted date.")
+                                continue
+                            if posted_date < one_day_ago:
+                                print(f"Skipping '{title_text}': posted on {posted_date.isoformat()}, older than 1 day.")
+                                continue
                             jobs_scraped.append({
                                 'title': title_text,
                                 'postedDate': date_string,
