@@ -16,8 +16,8 @@ SKILLS = [
 ]
 
 # GIG / PART-TIME filter params appended to every search URL
-# Removed gig/part-time restrictions to include Full-time and Freelance jobs
-JOB_TYPE_PARAMS = 'isFromJobsearchForm=1'
+# Added gig/part-time restrictions to only look for Part-time and Gig jobs
+JOB_TYPE_PARAMS = 'isFromJobsearchForm=1&gig=on&partTime=on'
 EXCLUDE_KEYWORDS = [
     'senior', 'sr', 'lead', 'manager', 'director', 'head', 'principal', 
     'staff', 'mid', 'mid-level', 'intermediate', 'expert', 'experienced', 
