@@ -9,16 +9,15 @@ from bs4 import BeautifulSoup
 
 load_dotenv()
 
-KEYWORDS = [
-    'junior developer', 'junior web developer', 'junior software developer',
-    'junior frontend', 'junior backend', 'junior fullstack', 'junior full stack',
-    'entry level developer', 'entry level programmer', 'fresher developer',
-    'web developer', 'frontend developer', 'backend developer',
-    'full stack developer', 'software developer', 'react developer',
-    'node developer', 'python developer', 'javascript developer'
+SKILLS = [
+    'react', 'node', 'python', 'javascript', 'typescript', 'frontend', 'backend', 
+    'fullstack', 'full stack', 'web', 'php', 'laravel', 'django', 'vue', 'angular',
+    'software', 'developer', 'engineer', 'programmer'
 ]
+
 # GIG / PART-TIME filter params appended to every search URL
-JOB_TYPE_PARAMS = 'skill_tags=&gig=on&partTime=on&isFromJobsearchForm=1'
+# Removed gig/part-time restrictions to include Full-time and Freelance jobs
+JOB_TYPE_PARAMS = 'isFromJobsearchForm=1'
 EXCLUDE_KEYWORDS = [
     'senior', 'sr', 'lead', 'manager', 'director', 'head', 'principal', 
     'staff', 'mid', 'mid-level', 'intermediate', 'expert', 'experienced', 
@@ -142,9 +141,9 @@ def scrape_jobs():
 
     one_day_ago = datetime.now() - timedelta(days=1)
 
-    print(f"Starting job search for: {', '.join(KEYWORDS)}")
+    print(f"Starting job search for broad tech terms...")
 
-    search_queries = [None] + KEYWORDS
+    search_queries = [None, 'developer', 'engineer', 'programmer']
     for query in search_queries:
         if query is None:
             print("\n--- Scraping main feed ---")
@@ -154,6 +153,8 @@ def scrape_jobs():
         visited_urls = set()
         offset = 0
         should_continue = True
+        consecutive_duplicates = 0
+        MAX_DUPLICATES = 5
 
         while should_continue:
             if query is None:
@@ -222,9 +223,15 @@ def scrape_jobs():
                         full_link = link if link.startswith('http') else f"https://www.onlinejobs.ph{link}"
 
                         if full_link in existing_links:
-                            print(f"Found already scraped job '{title_text}'. Stopping pagination.")
-                            should_continue = False
-                            break
+                            print(f"Found already scraped job '{title_text}'.")
+                            consecutive_duplicates += 1
+                            if consecutive_duplicates >= MAX_DUPLICATES:
+                                print(f"Reached {MAX_DUPLICATES} consecutive duplicates. Stopping pagination.")
+                                should_continue = False
+                                break
+                            continue
+                        else:
+                            consecutive_duplicates = 0
 
                         title_lower = title_text.lower()
                         
@@ -237,9 +244,9 @@ def scrape_jobs():
                         if is_excluded:
                             continue
 
-                        matches_keyword = any(k.lower() in title_lower for k in KEYWORDS)
+                        matches_keyword = any(k.lower() in title_lower for k in SKILLS)
 
-                        if matches_keyword or not KEYWORDS:
+                        if matches_keyword or not SKILLS:
                             # Only keep jobs posted within the last 24 hours.
                             # Skip if date couldn't be parsed (posted_date is None)
                             # or if the posting is older than one_day_ago.
