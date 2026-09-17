@@ -250,7 +250,7 @@ def send_telegram_message(new_jobs: List[Dict]):
                     formatted_date = dt.strftime("%b %d, %Y") + days_str
                 else:
                     hours_ago = (now_pht - dt).total_seconds() / 3600
-                    hours_ago_str = f" ({int(hours_ago)}h ago)" if hours_ago >= 1 else " (<1h ago)"
+                    hours_ago_str = f" ({int(hours_ago)}h ago)" if hours_ago >= 1 else " (just now)"
                     formatted_date = dt.strftime("%b %d, %Y at %I:%M %p") + hours_ago_str
             except ValueError:
                 pass
