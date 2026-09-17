@@ -272,8 +272,8 @@ def send_telegram_message(new_jobs: List[Dict]):
         # Prepend part indicator when there are multiple messages
         if total > 1:
             part = f"<i>[{idx}/{total}]</i>\n" + part
-            if idx > 1:
-                time.sleep(0.5)  # Respect Telegram's 1 msg/sec rate limit
+        if idx > 1:
+            time.sleep(1)  # Respect Telegram's 1 msg/sec rate limit per chat
         _post_to_telegram(part)
 
 def _post_to_telegram(message: str):
@@ -290,16 +290,17 @@ def _post_to_telegram(message: str):
         data = response.json()
         if not data.get("ok"):
             # Telegram returns HTTP 200 even for application-level errors
-            err = data.get('description', 'Unknown error')
-            print(f"Telegram API error: {err}")
-            # Fallback: retry once with parse_mode disabled to ensure delivery
-            payload["parse_mode"] = None
+            err = data.get('description', 'Unknown Telegram error')
+            print(f"Telegram API error (HTML mode): {err}")
+            # Fallback: retry without parse_mode (must be removed, not set to None)
+            payload.pop("parse_mode", None)
             payload["text"] = re.sub(r'<[^>]+>', '', message)  # strip HTML tags
             retry = requests.post(url, json=payload, timeout=15)
-            if retry.ok and retry.json().get("ok"):
+            retry_data = retry.json()
+            if retry.ok and retry_data.get("ok"):
                 print("Fallback plain-text message sent successfully.")
             else:
-                print(f"Fallback also failed: {retry.text}")
+                print(f"Fallback also failed: {retry_data.get('description', retry.text)}")
         else:
             print("Successfully sent message to Telegram.")
     except Exception as e:
