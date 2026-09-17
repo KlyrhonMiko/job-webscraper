@@ -14,20 +14,30 @@ PHT = timezone(timedelta(hours=8))
 
 # Expanded skills list
 SKILLS = [
-    'react', 'node', 'python', 'javascript', 'typescript', 'frontend', 'backend', 
-    'fullstack', 'full stack', 'full-stack', 'web', 'php', 'laravel', 'django', 'vue', 'angular',
+    'react', 'node', 'python', 'javascript', 'typescript', 'frontend', 'backend',
+    'fullstack', 'full stack', 'full-stack', 'web', 'website', 'php', 'laravel', 'django', 'vue', 'angular',
     'software', 'developer', 'engineer', 'programmer', 'supabase', 'next.js', 'nextjs',
-    'html', 'css', 'tailwind', 'aws', 'api', 'svelte', 'express'
+    'html', 'css', 'tailwind', 'aws', 'api', 'svelte', 'express',
+    'flutter', 'dart', 'fastapi', 'docker'
 ]
 
 # Filter params appended to search URLs
 JOB_TYPE_PARAMS = 'isFromJobsearchForm=1&freelance=on&fullTime=on&partTime=on&gig=on'
 
-EXCLUDE_KEYWORDS = [
-    'senior', 'sr', 'lead', 'manager', 'director', 'head', 'principal', 
-    'staff', 'mid', 'mid-level', 'intermediate', 'expert', 'experienced', 
-    'supervisor', 'vp', 'architect', 'master', 'specialist', 'executive',
-    'sysadmin', 'admin', 'administrator'
+# Non-software / non-web engineering disciplines to exclude
+NON_SOFTWARE_EXCLUDES = [
+    'geotechnical', 'mechanical', 'civil', 'electrical', 'structural',
+    'piping', 'hydraulic', 'fea', 'sales engineer', 'desktop support',
+    'hardware', 'hvac', 'plumbing', 'bim', 'revit', 'autocad', 'drafter',
+    'cad', 'quantity surveyor', 'land surveyor', 'it technician', 'field technician',
+    'network technician', 'l2 tech support', 'l1 tech support', 'tier 1', 'tier 2',
+    'support technician', 'piping designer', 'construction'
+]
+
+# Seniority / executive keywords to filter out
+EXCLUDE_SENIORITY_KEYWORDS = [
+    'senior', 'sr', 'principal', 'staff', 'mid', 'mid-level', 'intermediate',
+    'supervisor', 'director', 'vp', 'head of', 'architect', 'sysadmin'
 ]
 
 # Broad search terms and targeted technical queries
@@ -145,9 +155,37 @@ def matches_skills(title: str) -> bool:
 
 def is_excluded_title(title: str) -> bool:
     title_lower = title.lower()
-    for ex in EXCLUDE_KEYWORDS:
-        if re.search(rf'\b{re.escape(ex.lower())}\b', title_lower):
+
+    # Filter out non-software engineering / hardware / civil disciplines
+    for term in NON_SOFTWARE_EXCLUDES:
+        if re.search(rf'\b{re.escape(term)}\b', title_lower):
             return True
+
+    # Filter out clear seniority / executive levels
+    for ex in EXCLUDE_SENIORITY_KEYWORDS:
+        if re.search(rf'\b{re.escape(ex)}\b', title_lower):
+            return True
+
+    # Filter lead roles, but NOT when the title is about *assisting* a lead
+    # e.g. "iOS Developer – Support Our Lead Developer" should still pass
+    is_supporting_lead = bool(
+        re.search(r'\b(support(?:ing)?|assist(?:ant|ing)?)\s+(?:our\s+|the\s+)?lead\b', title_lower)
+    )
+    if not is_supporting_lead:
+        if re.search(
+            r'\b(tech\s+lead|team\s+lead|lead\s+(developer|engineer|programmer|coder|architect|designer))\b',
+            title_lower
+        ) or re.search(r'^lead\s+', title_lower):
+            return True
+
+    # Filter specific management roles (but not e.g. "Developer & Manager – Shopify")
+    if re.search(
+        r'\b(engineering\s+manager|product\s+manager|project\s+manager|operations\s+manager|'
+        r'account\s+manager|sales\s+manager|brand\s+manager)\b',
+        title_lower
+    ):
+        return True
+
     return False
 
 def parse_card_date(date_element) -> Tuple[Optional[datetime], str]:
@@ -182,14 +220,15 @@ def send_telegram_message(new_jobs: List[Dict]):
             job_type = 'Unknown'
         grouped_jobs.setdefault(job_type, []).append(job)
 
-    message = (
+    # Build all message parts first so we can add [N/M] part numbering
+    parts: List[str] = []
+    current = (
         f"<b>Job Search Update</b>\n"
         f"{len(new_jobs)} new opportunities found.\n"
     )
     for job_type, jobs in grouped_jobs.items():
-        message += f"\n<b>── {job_type.upper()} ──</b>\n\n"
+        current += f"\n<b>── {job_type.upper()} ──</b>\n\n"
         for i, job in enumerate(jobs, 1):
-            job_id = job.get('id', i)
             formatted_date = job.get('postedDate', '')
             try:
                 dt_str = formatted_date.replace(' ', 'T') if ' ' in formatted_date else formatted_date
@@ -197,7 +236,7 @@ def send_telegram_message(new_jobs: List[Dict]):
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=PHT)
                 now_pht = datetime.now(PHT)
-                
+
                 if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
                     days_ago = (now_pht.date() - dt.date()).days
                     if days_ago == 0:
@@ -214,15 +253,24 @@ def send_telegram_message(new_jobs: List[Dict]):
             except ValueError:
                 pass
 
-            message += f"• <a href='{job['link']}'>{job['title']}</a>\n"
-            message += f"  <i>Posted: {formatted_date}</i>\n\n"
+            entry = f"• <a href='{job['link']}'>{job['title']}</a>\n"
+            entry += f"  <i>Posted: {formatted_date}</i>\n\n"
 
-            if len(message) > 3400:
-                _post_to_telegram(message)
-                message = ""
+            if len(current) + len(entry) > 3400:
+                parts.append(current)
+                current = entry
+            else:
+                current += entry
 
-    if message:
-        _post_to_telegram(message)
+    if current:
+        parts.append(current)
+
+    total = len(parts)
+    for idx, part in enumerate(parts, 1):
+        # Prepend part indicator when there are multiple messages
+        if total > 1:
+            part = f"<i>[{idx}/{total}]</i>\n" + part
+        _post_to_telegram(part)
 
 def _post_to_telegram(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
