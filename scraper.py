@@ -197,9 +197,20 @@ def send_telegram_message(new_jobs: List[Dict]):
                 if dt.tzinfo is None:
                     dt = dt.replace(tzinfo=PHT)
                 now_pht = datetime.now(PHT)
-                hours_ago = (now_pht - dt).total_seconds() / 3600
-                hours_ago_str = f" ({int(hours_ago)}h ago)" if hours_ago >= 1 else " (<1h ago)"
-                formatted_date = dt.strftime("%b %d, %Y at %I:%M %p") + hours_ago_str
+                
+                if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+                    days_ago = (now_pht.date() - dt.date()).days
+                    if days_ago == 0:
+                        days_str = " (Today)"
+                    elif days_ago == 1:
+                        days_str = " (1d ago)"
+                    else:
+                        days_str = f" ({days_ago}d ago)"
+                    formatted_date = dt.strftime("%b %d, %Y") + days_str
+                else:
+                    hours_ago = (now_pht - dt).total_seconds() / 3600
+                    hours_ago_str = f" ({int(hours_ago)}h ago)" if hours_ago >= 1 else " (<1h ago)"
+                    formatted_date = dt.strftime("%b %d, %Y at %I:%M %p") + hours_ago_str
             except ValueError:
                 pass
 
@@ -377,7 +388,7 @@ def scrape_jobs():
                                 is_recent = True
                                 page_has_recent_jobs = True
                                 posted_date = dt_updated
-                                date_string = dt_updated.strftime("%Y-%m-%d %H:%M:%S")
+                                date_string = dt_updated.strftime("%Y-%m-%d")
                                 print(f"Captured recently updated job: '{title_text}' (Updated: {dt_updated.strftime('%b %d, %Y')})")
 
                     if not is_recent:
