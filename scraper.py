@@ -278,33 +278,47 @@ def send_telegram_message(new_jobs: List[Dict]):
 
 def _post_to_telegram(message: str):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
+
+    # --- Attempt 1: HTML formatting ---
+    html_payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": message,
         "parse_mode": "HTML",
         "disable_web_page_preview": True
     }
+    success = False
     try:
-        response = requests.post(url, json=payload, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-        if not data.get("ok"):
-            # Telegram returns HTTP 200 even for application-level errors
-            err = data.get('description', 'Unknown Telegram error')
-            print(f"Telegram API error (HTML mode): {err}")
-            # Fallback: retry without parse_mode (must be removed, not set to None)
-            payload.pop("parse_mode", None)
-            payload["text"] = re.sub(r'<[^>]+>', '', message)  # strip HTML tags
-            retry = requests.post(url, json=payload, timeout=15)
-            retry_data = retry.json()
-            if retry.ok and retry_data.get("ok"):
-                print("Fallback plain-text message sent successfully.")
-            else:
-                print(f"Fallback also failed: {retry_data.get('description', retry.text)}")
-        else:
+        r = requests.post(url, json=html_payload, timeout=15)
+        data = r.json()
+        if r.ok and data.get("ok"):
             print("Successfully sent message to Telegram.")
+            success = True
+        else:
+            err = data.get('description', f'HTTP {r.status_code}')
+            print(f"Telegram API error (HTML mode): {err}")
     except Exception as e:
-        print(f"Failed to send message to Telegram: {e}")
+        print(f"Telegram request failed (HTML mode): {e}")
+
+    if success:
+        return
+
+    # --- Attempt 2: plain-text fallback (parse_mode omitted entirely) ---
+    print("Retrying as plain text...")
+    plain_payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": re.sub(r'<[^>]+>', '', message),  # strip all HTML tags
+        "disable_web_page_preview": True
+    }
+    try:
+        r2 = requests.post(url, json=plain_payload, timeout=15)
+        data2 = r2.json()
+        if r2.ok and data2.get("ok"):
+            print("Fallback plain-text message sent successfully.")
+        else:
+            print(f"Fallback also failed: {data2.get('description', r2.text)}")
+    except Exception as e2:
+        print(f"Fallback request also failed: {e2}")
+
 
 def scrape_jobs():
     existing_jobs = load_existing_jobs()
