@@ -184,10 +184,10 @@ def send_telegram_message(new_jobs: List[Dict]):
 
     message = (
         f"<b>Job Search Update</b>\n"
-        f"{len(new_jobs)} new opportunities found.\n\n"
+        f"{len(new_jobs)} new opportunities found.\n"
     )
     for job_type, jobs in grouped_jobs.items():
-        message += f"<b>{job_type.upper()}</b>\n\n"
+        message += f"\n<b>── {job_type.upper()} ──</b>\n\n"
         for i, job in enumerate(jobs, 1):
             job_id = job.get('id', i)
             formatted_date = job.get('postedDate', '')
