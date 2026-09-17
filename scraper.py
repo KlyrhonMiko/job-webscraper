@@ -21,7 +21,7 @@ SKILLS = [
 ]
 
 # Filter params appended to search URLs
-JOB_TYPE_PARAMS = 'isFromJobsearchForm=1'
+JOB_TYPE_PARAMS = 'isFromJobsearchForm=1&freelance=on&fullTime=on&partTime=on&gig=on'
 
 EXCLUDE_KEYWORDS = [
     'senior', 'sr', 'lead', 'manager', 'director', 'head', 'principal', 
@@ -178,6 +178,8 @@ def send_telegram_message(new_jobs: List[Dict]):
     grouped_jobs = {}
     for job in new_jobs:
         job_type = job.get('job_type', 'Unknown')
+        if not job_type:
+            job_type = 'Unknown'
         grouped_jobs.setdefault(job_type, []).append(job)
 
     message = (
@@ -314,7 +316,15 @@ def scrape_jobs():
                     job_type_text = 'Unknown'
                     if title_elem:
                         for badge in title_elem.select('.badge'):
-                            job_type_text = badge.get_text(strip=True)
+                            classes = badge.get('class', [])
+                            if 'full-time' in classes: job_type_text = 'Full Time'
+                            elif 'part-time' in classes: job_type_text = 'Part Time'
+                            elif 'gig' in classes: job_type_text = 'Gig'
+                            elif 'freelance' in classes: job_type_text = 'Freelance'
+                            elif 'any' in classes: job_type_text = 'Any'
+                            else:
+                                text = badge.get_text(strip=True)
+                                if text: job_type_text = text
                             badge.extract()
                         title_text = title_elem.get_text(strip=True)
 
@@ -418,6 +428,8 @@ def scrape_jobs():
         grouped_new = {}
         for job in new_jobs:
             j_type = job.get('job_type', 'Unknown')
+            if not j_type:
+                j_type = 'Unknown'
             grouped_new.setdefault(j_type, []).append(job)
             
         for j_type, jobs in grouped_new.items():
