@@ -82,10 +82,12 @@ def load_existing_jobs() -> List[Dict]:
     try:
         with open(JOBS_FILE, 'r', encoding='utf-8') as f:
             jobs = json.load(f)
-            # Ensure all loaded jobs have an 'id'
+            # Ensure all loaded jobs have an 'id' and 'status'
             for idx, job in enumerate(jobs, 1):
                 if 'id' not in job:
                     job['id'] = idx
+                if 'status' not in job:
+                    job['status'] = 'new'
             return jobs
     except Exception as e:
         print(f"Warning: Error reading {JOBS_FILE}: {e}")
@@ -206,6 +208,100 @@ def parse_card_date(date_element) -> Tuple[Optional[datetime], str]:
     except ValueError:
         return None, date_string
 
+def format_job_date(formatted_date: str) -> str:
+    if not formatted_date:
+        return "N/A"
+    try:
+        dt_str = formatted_date.replace(' ', 'T') if ' ' in formatted_date else formatted_date
+        dt = datetime.fromisoformat(dt_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=PHT)
+        now_pht = datetime.now(PHT)
+
+        if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+            days_ago = (now_pht.date() - dt.date()).days
+            if days_ago == 0:
+                days_str = " (Today)"
+            elif days_ago == 1:
+                days_str = " (1d ago)"
+            else:
+                days_str = f" ({days_ago}d ago)"
+            return dt.strftime("%b %d, %Y") + days_str
+        else:
+            hours_ago = (now_pht - dt).total_seconds() / 3600
+            hours_ago_str = f" ({int(hours_ago)}h ago)" if hours_ago >= 1 else " (just now)"
+            return dt.strftime("%b %d, %Y at %I:%M %p") + hours_ago_str
+    except ValueError:
+        return formatted_date
+
+def format_job_card(job: Dict, status: Optional[str] = None) -> str:
+    jid = job.get('id', '?')
+    title = html.escape(job.get('title', 'Untitled'))
+    job_type = job.get('job_type', 'Unknown')
+    posted = format_job_date(job.get('postedDate', ''))
+
+    current_status = status if status is not None else job.get('status', 'new')
+
+    if current_status == "not_applicable":
+        return (
+            f"<s>[#{jid}] {title}</s>\n"
+            f"Status: Not Applicable"
+        )
+    elif current_status == "interested":
+        return (
+            f"<b>[#{jid}] {title}</b>\n"
+            f"Status: Interested\n"
+            f"Type: {job_type}\n"
+            f"Posted: {posted}"
+        )
+    else:
+        return (
+            f"<b>[#{jid}] {title}</b>\n"
+            f"Type: {job_type}\n"
+            f"Posted: {posted}"
+        )
+
+def get_job_keyboard(job: Dict, status: Optional[str] = None) -> Dict:
+    jid = job.get('id', 0)
+    link = job.get('link', '')
+    current_status = status if status is not None else job.get('status', 'new')
+
+    if current_status == "not_applicable":
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "Undo", "callback_data": f"undo:{jid}"},
+                    {"text": "View Job", "url": link}
+                ]
+            ]
+        }
+    elif current_status == "interested":
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "Generate Application", "callback_data": f"apply:{jid}"},
+                    {"text": "Not Applicable", "callback_data": f"dismiss:{jid}"}
+                ],
+                [
+                    {"text": "Preview", "callback_data": f"preview:{jid}"},
+                    {"text": "View Job", "url": link}
+                ]
+            ]
+        }
+    else:
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "Interested", "callback_data": f"interest:{jid}"},
+                    {"text": "Not Applicable", "callback_data": f"dismiss:{jid}"}
+                ],
+                [
+                    {"text": "Preview", "callback_data": f"preview:{jid}"},
+                    {"text": "View Job", "url": link}
+                ]
+            ]
+        }
+
 def send_telegram_message(new_jobs: List[Dict]):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         print("Telegram bot token or chat ID is missing. Skipping Telegram notification.")
@@ -215,68 +311,24 @@ def send_telegram_message(new_jobs: List[Dict]):
         _post_to_telegram("<b>Job Search Update</b>\nNo new opportunities found.")
         return
 
-    grouped_jobs = {}
-    for job in new_jobs:
-        job_type = job.get('job_type', 'Unknown')
-        if not job_type:
-            job_type = 'Unknown'
-        grouped_jobs.setdefault(job_type, []).append(job)
+    # Post initial summary update
+    summary = f"<b>Job Search Update</b>\nFound {len(new_jobs)} new opportunities."
+    _post_to_telegram(summary)
+    time.sleep(1)
 
-    # Build all message parts first so we can add [N/M] part numbering
-    parts: List[str] = []
-    current = (
-        f"<b>Job Search Update</b>\n"
-        f"{len(new_jobs)} new opportunities found.\n"
-    )
-    for job_type, jobs in grouped_jobs.items():
-        current += f"\n<b>── {job_type.upper()} ──</b>\n\n"
-        for i, job in enumerate(jobs, 1):
-            formatted_date = job.get('postedDate', '')
-            try:
-                dt_str = formatted_date.replace(' ', 'T') if ' ' in formatted_date else formatted_date
-                dt = datetime.fromisoformat(dt_str)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=PHT)
-                now_pht = datetime.now(PHT)
+    # Deliver job cards with interactive buttons (capped at 20 per batch to avoid flooding)
+    MAX_CARDS = 20
+    for job in new_jobs[:MAX_CARDS]:
+        card = format_job_card(job)
+        keyboard = get_job_keyboard(job)
+        _post_to_telegram(card, reply_markup=keyboard)
+        time.sleep(0.75)  # Comply with Telegram rate limits
 
-                if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
-                    days_ago = (now_pht.date() - dt.date()).days
-                    if days_ago == 0:
-                        days_str = " (Today)"
-                    elif days_ago == 1:
-                        days_str = " (1d ago)"
-                    else:
-                        days_str = f" ({days_ago}d ago)"
-                    formatted_date = dt.strftime("%b %d, %Y") + days_str
-                else:
-                    hours_ago = (now_pht - dt).total_seconds() / 3600
-                    hours_ago_str = f" ({int(hours_ago)}h ago)" if hours_ago >= 1 else " (just now)"
-                    formatted_date = dt.strftime("%b %d, %Y at %I:%M %p") + hours_ago_str
-            except ValueError:
-                pass
+    if len(new_jobs) > MAX_CARDS:
+        remaining = len(new_jobs) - MAX_CARDS
+        _post_to_telegram(f"<i>And {remaining} more opportunities. Use /jobs to view all active listings.</i>")
 
-            entry = f"• <a href='{job['link']}'>{html.escape(job['title'])}</a>\n"
-            entry += f"  <i>Posted: {formatted_date}</i>\n\n"
-
-            if len(current) + len(entry) > 3400:
-                parts.append(current)
-                current = entry
-            else:
-                current += entry
-
-    if current:
-        parts.append(current)
-
-    total = len(parts)
-    for idx, part in enumerate(parts, 1):
-        # Prepend part indicator when there are multiple messages
-        if total > 1:
-            part = f"<i>[{idx}/{total}]</i>\n" + part
-        if idx > 1:
-            time.sleep(1)  # Respect Telegram's 1 msg/sec rate limit per chat
-        _post_to_telegram(part)
-
-def _post_to_telegram(message: str):
+def _post_to_telegram(message: str, reply_markup: Optional[Dict] = None) -> bool:
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
 
     # --- Attempt 1: HTML formatting ---
@@ -286,6 +338,9 @@ def _post_to_telegram(message: str):
         "parse_mode": "HTML",
         "disable_web_page_preview": True
     }
+    if reply_markup:
+        html_payload["reply_markup"] = reply_markup
+
     success = False
     try:
         r = requests.post(url, json=html_payload, timeout=15)
@@ -300,7 +355,7 @@ def _post_to_telegram(message: str):
         print(f"Telegram request failed (HTML mode): {e}")
 
     if success:
-        return
+        return True
 
     # --- Attempt 2: plain-text fallback (parse_mode omitted entirely) ---
     print("Retrying as plain text...")
@@ -309,15 +364,20 @@ def _post_to_telegram(message: str):
         "text": re.sub(r'<[^>]+>', '', message),  # strip all HTML tags
         "disable_web_page_preview": True
     }
+    if reply_markup:
+        plain_payload["reply_markup"] = reply_markup
+
     try:
         r2 = requests.post(url, json=plain_payload, timeout=15)
         data2 = r2.json()
         if r2.ok and data2.get("ok"):
             print("Fallback plain-text message sent successfully.")
+            return True
         else:
             print(f"Fallback also failed: {data2.get('description', r2.text)}")
     except Exception as e2:
         print(f"Fallback request also failed: {e2}")
+    return False
 
 
 def scrape_jobs():
@@ -509,6 +569,7 @@ def scrape_jobs():
             repeated_jobs.append(job)
         else:
             job['id'] = next_id
+            job['status'] = 'new'
             next_id += 1
             new_jobs.append(job)
             existing_links.add(job['link'])
