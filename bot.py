@@ -105,7 +105,7 @@ def handle_apply(chat_id: str, job_id_str: str):
     try:
         job_id = int(job_id_str)
     except ValueError:
-        send_message(chat_id, "⚠️ Invalid job number. Please send a valid number like <code>1</code> or <code>/apply 1</code>.")
+        send_message(chat_id, "Invalid job number. Please send a valid number like <code>1</code> or <code>/apply 1</code>.")
         return
 
     jobs = get_latest_jobs()
@@ -116,22 +116,21 @@ def handle_apply(chat_id: str, job_id_str: str):
             selected_job = jobs[job_id - 1]
 
     if not selected_job:
-        send_message(chat_id, f"❌ Job <b>#{job_id}</b> not found in saved jobs list. Use <code>/jobs</code> to view active jobs.")
+        send_message(chat_id, f"Job <b>#{job_id}</b> not found in saved jobs list. Use <code>/jobs</code> to view active jobs.")
         return
 
     job_title = selected_job['title']
     job_url = selected_job['link']
 
-    send_message(chat_id, f"⏳ <b>Fetching details & generating application for Job #{job_id}:</b>\n<i>{job_title}</i>...")
+    send_message(chat_id, f"<b>Fetching details & generating application for Job #{job_id}:</b>\n<i>{job_title}</i>...")
 
     description = fetch_job_description(job_url)
     application_msg = generate_job_application(job_title, description, job_url)
 
     response = (
-        f"✍️ <b>Generated Application Message for Job #{job_id}</b>\n"
+        f"<b>Generated Application Message for Job #{job_id}</b>\n"
         f"<b>Role:</b> {job_title}\n"
-        f"<b>Link:</b> {job_url}\n"
-        f"➖➖➖➖➖➖➖➖➖➖\n\n"
+        f"<b>Link:</b> {job_url}\n\n"
         f"{application_msg}"
     )
 
@@ -142,7 +141,7 @@ def handle_preview(chat_id: str, job_id_str: str):
     try:
         job_id = int(job_id_str)
     except ValueError:
-        send_message(chat_id, "⚠️ Invalid job number. Please send a valid number like <code>/preview 1</code>.")
+        send_message(chat_id, "Invalid job number. Please send a valid number like <code>/preview 1</code>.")
         return
 
     jobs = get_latest_jobs()
@@ -153,22 +152,21 @@ def handle_preview(chat_id: str, job_id_str: str):
             selected_job = jobs[job_id - 1]
 
     if not selected_job:
-        send_message(chat_id, f"❌ Job <b>#{job_id}</b> not found in saved jobs list. Use <code>/jobs</code> to view active jobs.")
+        send_message(chat_id, f"Job <b>#{job_id}</b> not found in saved jobs list. Use <code>/jobs</code> to view active jobs.")
         return
 
     job_title = selected_job['title']
     job_url = selected_job['link']
 
-    send_message(chat_id, f"🔍 <b>Fetching description & extracting key requirements for Job #{job_id}:</b>\n<i>{job_title}</i>...")
+    send_message(chat_id, f"<b>Fetching description & extracting key requirements for Job #{job_id}:</b>\n<i>{job_title}</i>...")
 
     description = fetch_job_description(job_url)
     preview_msg = generate_job_preview(job_title, description)
 
     response = (
-        f"🔍 <b>AI Job Preview: #{job_id}</b>\n"
+        f"<b>AI Job Preview: #{job_id}</b>\n"
         f"<b>Role:</b> {job_title}\n"
-        f"<b>Link:</b> {job_url}\n"
-        f"➖➖➖➖➖➖➖➖➖➖\n\n"
+        f"<b>Link:</b> {job_url}\n\n"
         f"{preview_msg}"
     )
 
@@ -179,10 +177,10 @@ def handle_list_jobs(chat_id: str):
     """Lists saved jobs with their IDs."""
     jobs = get_latest_jobs()
     if not jobs:
-        send_message(chat_id, "📭 No jobs currently saved. Run scraper.py to find jobs!")
+        send_message(chat_id, "No jobs currently saved. Run scraper.py to find jobs.")
         return
 
-    msg = "📋 <b>Recent Saved Jobs</b>\n\n"
+    msg = "<b>Recent Saved Jobs</b>\n\n"
     for job in jobs[-10:]:
         jid = job.get('id', '?')
         msg += f"<b>#{jid}</b> - <a href='{job['link']}'>{job['title']}</a>\n"
@@ -192,7 +190,7 @@ def handle_list_jobs(chat_id: str):
 def handle_resume(chat_id: str):
     """Displays current resume profile context."""
     resume_text = load_resume()
-    msg = f"📄 <b>Current Resume Profile Context (resume.txt):</b>\n\n<code>{resume_text}</code>\n\n💡 <i>Edit <b>resume.txt</b> in your project folder to update your skills & background.</i>"
+    msg = f"<b>Current Resume Profile Context (resume.txt):</b>\n\n<code>{resume_text}</code>\n\n<i>Edit <b>resume.txt</b> in your project folder to update your skills & background.</i>"
     send_message(chat_id, msg)
 
 def handle_reset(chat_id: str):
@@ -238,30 +236,30 @@ def handle_reset(chat_id: str):
         from scraper import save_jobs
         save_jobs([])
     except Exception as local_err:
-        send_message(chat_id, f"❌ <b>Error clearing local job list:</b>\n<code>{local_err}</code>")
+        send_message(chat_id, f"<b>Error clearing local job list:</b>\n<code>{local_err}</code>")
         return
 
     # Notify user with clear status
     if github_token:
         if github_success:
-            send_message(chat_id, "✅ <b>Job list successfully reset on GitHub and locally!</b>")
+            send_message(chat_id, "<b>Job list successfully reset on GitHub and locally.</b>")
         else:
             send_message(
                 chat_id,
-                f"✅ <b>Local job list reset!</b>\n"
-                f"⚠️ <b>GitHub update failed:</b> <code>{github_error_detail}</code>\n\n"
-                f"💡 <i>Tip: Ensure your GITHUB_TOKEN has <b>repo</b> scope or <b>Contents: Read & write</b> permissions.</i>"
+                f"<b>Local job list reset.</b>\n"
+                f"<b>GitHub update failed:</b> <code>{github_error_detail}</code>\n\n"
+                f"<i>Tip: Ensure your GITHUB_TOKEN has <b>repo</b> scope or <b>Contents: Read & write</b> permissions.</i>"
             )
     else:
         send_message(
             chat_id, 
-            "✅ <b>Local job list reset!</b>\n"
-            "⚠️ <i>GITHUB_TOKEN not set in .env, so GitHub file was not cleared.</i>"
+            "<b>Local job list reset.</b>\n"
+            "<i>GITHUB_TOKEN not set in .env, so GitHub file was not cleared.</i>"
         )
 
 def handle_help(chat_id: str):
     msg = (
-        "🤖 <b>Job Application Bot Commands</b>\n\n"
+        "<b>Job Application Bot Commands</b>\n\n"
         "• <b>Send a Job Number (e.g. 1)</b> or <code>/apply 1</code>: Generate AI job application message\n"
         "• <code>/preview 1</code>: Generate a quick summary of experience & tech stack required\n"
         "• <code>/jobs</code> or <code>/list</code>: List saved jobs & numbers\n"
