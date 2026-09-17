@@ -6,7 +6,7 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 from dotenv import load_dotenv
-from scraper import load_existing_jobs, fetch_job_description
+from scraper import load_existing_jobs, fetch_job_description, scrape_jobs
 from ai_generator import generate_job_application, load_resume, generate_job_preview
 
 load_dotenv()
@@ -257,6 +257,19 @@ def handle_reset(chat_id: str):
             "<i>GITHUB_TOKEN not set in .env, so GitHub file was not cleared.</i>"
         )
 
+def handle_run(chat_id: str):
+    """Triggers the scraper manually."""
+    send_message(chat_id, "<b>Starting manual job scrape...</b>\n<i>This might take a few minutes. I will alert you with the results once finished.</i>")
+    
+    def run_scraper_thread():
+        try:
+            scrape_jobs()
+            send_message(chat_id, "<b>Scrape complete.</b>")
+        except Exception as e:
+            send_message(chat_id, f"<b>Error running scraper:</b>\n<code>{e}</code>")
+            
+    threading.Thread(target=run_scraper_thread, daemon=True).start()
+
 def handle_help(chat_id: str):
     msg = (
         "<b>Job Application Bot Commands</b>\n\n"
@@ -265,6 +278,7 @@ def handle_help(chat_id: str):
         "• <code>/jobs</code> or <code>/list</code>: List saved jobs & numbers\n"
         "• <code>/resume</code>: View saved resume profile details\n"
         "• <code>/reset</code> or <code>/clear</code>: Erase all saved jobs\n"
+        "• <code>/run</code> or <code>/scrape</code>: Manually trigger the job scraper\n"
         "• <code>/help</code>: Show this help menu\n"
     )
     send_message(chat_id, msg)
@@ -290,6 +304,8 @@ def process_message(message: dict):
         handle_resume(chat_id)
     elif text.startswith("/reset") or text.startswith("/clear"):
         handle_reset(chat_id)
+    elif text.startswith("/run") or text.startswith("/scrape"):
+        handle_run(chat_id)
     elif text.startswith("/preview"):
         parts = text.split()
         if len(parts) > 1:
