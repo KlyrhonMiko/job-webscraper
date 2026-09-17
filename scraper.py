@@ -250,9 +250,9 @@ def scrape_jobs():
     session = requests.Session()
     session.headers.update(get_request_headers())
 
-    MAX_CONSECUTIVE_DUPLICATES = 15
-    MAX_CONSECUTIVE_OLD = 10
-    MAX_PAGES_PER_TARGET = 5 # 30 jobs per page * 5 = 150 jobs checked per target
+    MAX_CONSECUTIVE_DUPLICATES = 25
+    MAX_CONSECUTIVE_OLD = 25
+    MAX_PAGES_PER_TARGET = 6 # 30 jobs per page * 6 = 180 jobs checked per target
 
     for target in SEARCH_TARGETS:
         print(f"\n--- Scraping: {target['name']} ---")
