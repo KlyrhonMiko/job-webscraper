@@ -1,0 +1,20 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Environment variables
+.env
+
+# Scratch / temporary files
+scratch_*.json
+scratch_*.py
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
