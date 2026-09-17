@@ -1,6 +1,8 @@
+import html
 import json
 import os
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional, Tuple
 import requests
@@ -253,7 +255,7 @@ def send_telegram_message(new_jobs: List[Dict]):
             except ValueError:
                 pass
 
-            entry = f"• <a href='{job['link']}'>{job['title']}</a>\n"
+            entry = f"• <a href='{job['link']}'>{html.escape(job['title'])}</a>\n"
             entry += f"  <i>Posted: {formatted_date}</i>\n\n"
 
             if len(current) + len(entry) > 3400:
@@ -270,6 +272,8 @@ def send_telegram_message(new_jobs: List[Dict]):
         # Prepend part indicator when there are multiple messages
         if total > 1:
             part = f"<i>[{idx}/{total}]</i>\n" + part
+            if idx > 1:
+                time.sleep(0.5)  # Respect Telegram's 1 msg/sec rate limit
         _post_to_telegram(part)
 
 def _post_to_telegram(message: str):
@@ -281,9 +285,23 @@ def _post_to_telegram(message: str):
         "disable_web_page_preview": True
     }
     try:
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=15)
         response.raise_for_status()
-        print("Successfully sent message to Telegram.")
+        data = response.json()
+        if not data.get("ok"):
+            # Telegram returns HTTP 200 even for application-level errors
+            err = data.get('description', 'Unknown error')
+            print(f"Telegram API error: {err}")
+            # Fallback: retry once with parse_mode disabled to ensure delivery
+            payload["parse_mode"] = None
+            payload["text"] = re.sub(r'<[^>]+>', '', message)  # strip HTML tags
+            retry = requests.post(url, json=payload, timeout=15)
+            if retry.ok and retry.json().get("ok"):
+                print("Fallback plain-text message sent successfully.")
+            else:
+                print(f"Fallback also failed: {retry.text}")
+        else:
+            print("Successfully sent message to Telegram.")
     except Exception as e:
         print(f"Failed to send message to Telegram: {e}")
 
