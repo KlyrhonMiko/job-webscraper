@@ -20,8 +20,8 @@ SKILLS = [
     'html', 'css', 'tailwind', 'aws', 'api', 'svelte', 'express'
 ]
 
-# GIG / PART-TIME filter params appended to search URLs
-JOB_TYPE_PARAMS = 'isFromJobsearchForm=1&gig=on&partTime=on'
+# Filter params appended to search URLs
+JOB_TYPE_PARAMS = 'isFromJobsearchForm=1'
 
 EXCLUDE_KEYWORDS = [
     'senior', 'sr', 'lead', 'manager', 'director', 'head', 'principal', 
@@ -172,31 +172,41 @@ def send_telegram_message(new_jobs: List[Dict]):
         return
 
     if not new_jobs:
-        _post_to_telegram("🎯 <b>Daily Job Alert</b>\n<i>No new jobs found right now.</i>")
+        _post_to_telegram("<b>Job Search Update</b>\nNo new opportunities found.")
         return
 
+    grouped_jobs = {}
+    for job in new_jobs:
+        job_type = job.get('job_type', 'Unknown')
+        grouped_jobs.setdefault(job_type, []).append(job)
+
     message = (
-        f"🎯 <b>Daily Job Alert</b>\n"
-        f"<i>Found {len(new_jobs)} new opportunities right now</i>\n\n"
-        f"➖➖➖➖➖➖➖➖➖➖\n\n"
+        f"<b>Job Search Update</b>\n"
+        f"{len(new_jobs)} new opportunities found.\n\n"
     )
-    for i, job in enumerate(new_jobs, 1):
-        job_id = job.get('id', i)
-        formatted_date = job.get('postedDate', '')
-        try:
-            dt_str = formatted_date.replace(' ', 'T') if ' ' in formatted_date else formatted_date
-            dt = datetime.fromisoformat(dt_str)
-            formatted_date = dt.strftime("%B %d, %Y at %I:%M %p")
-        except ValueError:
-            pass
+    for job_type, jobs in grouped_jobs.items():
+        message += f"<b>{job_type.upper()}</b>\n\n"
+        for i, job in enumerate(jobs, 1):
+            job_id = job.get('id', i)
+            formatted_date = job.get('postedDate', '')
+            try:
+                dt_str = formatted_date.replace(' ', 'T') if ' ' in formatted_date else formatted_date
+                dt = datetime.fromisoformat(dt_str)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=PHT)
+                now_pht = datetime.now(PHT)
+                hours_ago = (now_pht - dt).total_seconds() / 3600
+                hours_ago_str = f" ({int(hours_ago)}h ago)" if hours_ago >= 1 else " (<1h ago)"
+                formatted_date = dt.strftime("%b %d, %Y at %I:%M %p") + hours_ago_str
+            except ValueError:
+                pass
 
-        message += f"<b>#{job_id} 💼 {job['title']}</b>\n"
-        message += f"📅 <i>Posted: {formatted_date}</i>\n"
-        message += f"🔗 <a href='{job['link']}'>View Application</a>\n\n"
+            message += f"• <a href='{job['link']}'>{job['title']}</a>\n"
+            message += f"  <i>Posted: {formatted_date}</i>\n\n"
 
-        if len(message) > 3400:
-            _post_to_telegram(message)
-            message = ""
+            if len(message) > 3400:
+                _post_to_telegram(message)
+                message = ""
 
     if message:
         _post_to_telegram(message)
@@ -301,8 +311,10 @@ def scrape_jobs():
 
                     title_elem = row.select_one('h4')
                     title_text = ''
+                    job_type_text = 'Unknown'
                     if title_elem:
                         for badge in title_elem.select('.badge'):
+                            job_type_text = badge.get_text(strip=True)
                             badge.extract()
                         title_text = title_elem.get_text(strip=True)
 
@@ -372,7 +384,8 @@ def scrape_jobs():
                     jobs_scraped.append({
                         'title': title_text,
                         'postedDate': date_string,
-                        'link': full_link
+                        'link': full_link,
+                        'job_type': job_type_text
                     })
 
                 # If an entire page has no recent jobs and we already encountered duplicates/old jobs, stop
@@ -402,10 +415,17 @@ def scrape_jobs():
 
     if new_jobs:
         print('\n--- NEW JOB RESULTS ---')
+        grouped_new = {}
         for job in new_jobs:
-            print(f"\n[#{job['id']}] [NEW] {job['title']}")
-            print(f"Posted:   {job['postedDate']}")
-            print(f"Link:     {job['link']}")
+            j_type = job.get('job_type', 'Unknown')
+            grouped_new.setdefault(j_type, []).append(job)
+            
+        for j_type, jobs in grouped_new.items():
+            print(f"\n--- {j_type.upper()} ---")
+            for job in jobs:
+                print(f"[#{job['id']}] [NEW] {job['title']}")
+                print(f"Posted:   {job['postedDate']}")
+                print(f"Link:     {job['link']}")
         print('\n-------------------\n')
 
         send_telegram_message(new_jobs)
