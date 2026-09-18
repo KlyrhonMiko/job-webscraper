@@ -3,6 +3,13 @@ import sys
 import time
 import base64
 import threading
+
+# Force unbuffered/line-buffered output so logs show up instantly on Render/Docker
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(line_buffering=True)
+
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 from dotenv import load_dotenv
@@ -376,10 +383,10 @@ def start_bot():
         except requests.exceptions.Timeout:
             continue
         except requests.exceptions.RequestException as e:
-            print(f"Network error in bot loop: {e}")
+            print(f"Network error in bot loop: {e}", flush=True)
             time.sleep(5)
         except Exception as e:
-            print(f"Unexpected error in bot loop: {e}")
+            print(f"Unexpected error in bot loop: {e}", flush=True)
             time.sleep(3)
 
 if __name__ == "__main__":
