@@ -206,8 +206,13 @@ def parse_card_date(date_element) -> Tuple[Optional[datetime], str]:
     except ValueError:
         return None, date_string
 
+def get_telegram_chat_ids() -> List[str]:
+    raw = os.getenv('TELEGRAM_CHAT_ID', '')
+    return [cid.strip() for cid in raw.split(',') if cid.strip()]
+
 def send_telegram_message(new_jobs: List[Dict]):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+    chat_ids = get_telegram_chat_ids()
+    if not TELEGRAM_BOT_TOKEN or not chat_ids:
         print("Telegram bot token or chat ID is missing. Skipping Telegram notification.")
         return
 
@@ -277,47 +282,52 @@ def send_telegram_message(new_jobs: List[Dict]):
         _post_to_telegram(part)
 
 def _post_to_telegram(message: str):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-
-    # --- Attempt 1: HTML formatting ---
-    html_payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": True
-    }
-    success = False
-    try:
-        r = requests.post(url, json=html_payload, timeout=15)
-        data = r.json()
-        if r.ok and data.get("ok"):
-            print("Successfully sent message to Telegram.")
-            success = True
-        else:
-            err = data.get('description', f'HTTP {r.status_code}')
-            print(f"Telegram API error (HTML mode): {err}")
-    except Exception as e:
-        print(f"Telegram request failed (HTML mode): {e}")
-
-    if success:
+    chat_ids = get_telegram_chat_ids()
+    if not chat_ids:
         return
 
-    # --- Attempt 2: plain-text fallback (parse_mode omitted entirely) ---
-    print("Retrying as plain text...")
-    plain_payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": re.sub(r'<[^>]+>', '', message),  # strip all HTML tags
-        "disable_web_page_preview": True
-    }
-    try:
-        r2 = requests.post(url, json=plain_payload, timeout=15)
-        data2 = r2.json()
-        if r2.ok and data2.get("ok"):
-            print("Fallback plain-text message sent successfully.")
-        else:
-            print(f"Fallback also failed: {data2.get('description', r2.text)}")
-    except Exception as e2:
-        print(f"Fallback request also failed: {e2}")
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+
+    for chat_id in chat_ids:
+        # --- Attempt 1: HTML formatting ---
+        html_payload = {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML",
+            "disable_web_page_preview": True
+        }
+        success = False
+        try:
+            r = requests.post(url, json=html_payload, timeout=15)
+            data = r.json()
+            if r.ok and data.get("ok"):
+                print(f"Successfully sent message to Telegram ({chat_id}).")
+                success = True
+            else:
+                err = data.get('description', f'HTTP {r.status_code}')
+                print(f"Telegram API error (HTML mode) for {chat_id}: {err}")
+        except Exception as e:
+            print(f"Telegram request failed (HTML mode) for {chat_id}: {e}")
+
+        if success:
+            continue
+
+        # --- Attempt 2: plain-text fallback (parse_mode omitted entirely) ---
+        print(f"Retrying as plain text for {chat_id}...")
+        plain_payload = {
+            "chat_id": chat_id,
+            "text": re.sub(r'<[^>]+>', '', message),  # strip all HTML tags
+            "disable_web_page_preview": True
+        }
+        try:
+            r2 = requests.post(url, json=plain_payload, timeout=15)
+            data2 = r2.json()
+            if r2.ok and data2.get("ok"):
+                print(f"Fallback plain-text message sent successfully to {chat_id}.")
+            else:
+                print(f"Fallback also failed for {chat_id}: {data2.get('description', r2.text)}")
+        except Exception as e2:
+            print(f"Fallback request also failed for {chat_id}: {e2}")
 
 
 def scrape_jobs():

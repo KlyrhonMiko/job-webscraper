@@ -14,6 +14,11 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+def get_allowed_chat_ids() -> list:
+    """Returns list of authorized chat IDs from TELEGRAM_CHAT_ID (supports comma-separated IDs)."""
+    raw = os.getenv("TELEGRAM_CHAT_ID", "")
+    return [cid.strip() for cid in raw.split(",") if cid.strip()]
+
 class HealthCheckHandler(BaseHTTPRequestHandler):
     """Simple HTTP server to allow deploying as a Free Web Service on platforms like Render."""
     def do_GET(self):
@@ -284,38 +289,47 @@ def handle_help(chat_id: str):
     send_message(chat_id, msg)
 
 def process_message(message: dict):
-    chat_id = str(message.get("chat", {}).get("id"))
+    chat = message.get("chat", {})
+    chat_id = str(chat.get("id"))
+    chat_type = chat.get("type", "private")
     text = message.get("text", "").strip()
 
     if not text:
         return
 
-    print(f"Received message from chat {chat_id}: {text}")
+    print(f"Received message from chat {chat_id} ({chat_type}): {text}")
 
-    if TELEGRAM_CHAT_ID and chat_id != str(TELEGRAM_CHAT_ID):
-        print(f"Ignoring message from unauthorized chat_id: {chat_id}")
+    allowed_ids = get_allowed_chat_ids()
+    if allowed_ids and chat_id not in allowed_ids:
+        print(f"\n⚠️ [Access Denied] Chat ID '{chat_id}' tried to interact with the bot.")
+        print(f"👉 To allow this chat or group, add this ID to TELEGRAM_CHAT_ID in your .env or platform config:")
+        print(f"   TELEGRAM_CHAT_ID={','.join(allowed_ids)},{chat_id}\n")
         return
 
-    if text.startswith("/start") or text.startswith("/help"):
+    # In groups, commands are often formatted as /start@BotName or /jobs@BotName
+    parts = text.split()
+    first_token = parts[0] if parts else ""
+    command = first_token.split("@")[0].lower() if first_token.startswith("/") else ""
+    args = parts[1:] if len(parts) > 1 else []
+
+    if command in ("/start", "/help"):
         handle_help(chat_id)
-    elif text.startswith("/jobs") or text.startswith("/list"):
+    elif command in ("/jobs", "/list"):
         handle_list_jobs(chat_id)
-    elif text.startswith("/resume"):
+    elif command == "/resume":
         handle_resume(chat_id)
-    elif text.startswith("/reset") or text.startswith("/clear"):
+    elif command in ("/reset", "/clear"):
         handle_reset(chat_id)
-    elif text.startswith("/run") or text.startswith("/scrape"):
+    elif command in ("/run", "/scrape"):
         handle_run(chat_id)
-    elif text.startswith("/preview"):
-        parts = text.split()
-        if len(parts) > 1:
-            handle_preview(chat_id, parts[1])
+    elif command == "/preview":
+        if args:
+            handle_preview(chat_id, args[0])
         else:
             send_message(chat_id, "Please specify a job number, e.g. <code>/preview 1</code>")
-    elif text.startswith("/apply"):
-        parts = text.split()
-        if len(parts) > 1:
-            handle_apply(chat_id, parts[1])
+    elif command == "/apply":
+        if args:
+            handle_apply(chat_id, args[0])
         else:
             send_message(chat_id, "Please specify a job number, e.g. <code>/apply 1</code>")
     elif text.isdigit():
@@ -325,7 +339,11 @@ def process_message(message: dict):
         if cleaned.isdigit():
             handle_apply(chat_id, cleaned)
         else:
-            send_message(chat_id, "Unrecognized command. Send a job number (e.g., <code>1</code>) or <code>/jobs</code> to see available jobs.")
+            # Only reply with "unrecognized command" if it was a slash command or in a private 1-on-1 chat.
+            # In groups, do not spam when members are just chatting with each other.
+            is_group = chat_type in ("group", "supergroup")
+            if not is_group or text.startswith("/"):
+                send_message(chat_id, "Unrecognized command. Send a job number (e.g., <code>1</code>) or <code>/jobs</code> to see available jobs.")
 
 
 def start_bot():
