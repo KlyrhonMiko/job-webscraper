@@ -6536,5 +6536,54 @@
     "link": "https://www.onlinejobs.ph/jobseekers/job/fashion-product-developer-1750919",
     "job_type": "Full Time",
     "id": 934
+  },
+  {
+    "title": "Software Engineer (Django)",
+    "postedDate": "2026-10-19 17:52:38",
+    "link": "https://www.onlinejobs.ph/jobseekers/job/software-engineer-django-1752280",
+    "job_type": "Full Time",
+    "id": 935
+  },
+  {
+    "title": "Odoo ERP Developer & Integration Specialist",
+    "postedDate": "2026-10-19 17:14:37",
+    "link": "https://www.onlinejobs.ph/jobseekers/job/odoo-erp-developer-integration-specialist-1707106",
+    "job_type": "Any",
+    "id": 936
+  },
+  {
+    "title": "AI Automation Developer (Python, n8n, API Integrations, claude code)",
+    "postedDate": "2026-10-19 14:44:36",
+    "link": "https://www.onlinejobs.ph/jobseekers/job/ai-automation-developer-python-n8n-api-integrations-claude-code-1752094",
+    "job_type": "Full Time",
+    "id": 937
+  },
+  {
+    "title": "Full-Stack Developer, AI Products (Next.js, Python, Supabase)",
+    "postedDate": "2026-10-19 14:44:36",
+    "link": "https://www.onlinejobs.ph/jobseekers/job/full-stack-developer-ai-products-next-js-python-supabase-1752100",
+    "job_type": "Full Time",
+    "id": 938
+  },
+  {
+    "title": "Frontend-Focused Next.js Developer (Full-time or Part-time, up to $4/h)",
+    "postedDate": "2026-10-19 13:29:24",
+    "link": "https://www.onlinejobs.ph/jobseekers/job/frontend-focused-next-js-developer-full-time-or-part-time-up-to-4-h-1752019",
+    "job_type": "Any",
+    "id": 939
+  },
+  {
+    "title": "Mobile Widget Developer (iOS & Android)",
+    "postedDate": "2026-10-19 11:25:54",
+    "link": "https://www.onlinejobs.ph/jobseekers/job/mobile-widget-developer-ios-android-1751583",
+    "job_type": "Part Time",
+    "id": 940
+  },
+  {
+    "title": "AI Systems Engineer (Claude Code, Python, API Integrations)",
+    "postedDate": "2026-10-19 14:44:36",
+    "link": "https://www.onlinejobs.ph/jobseekers/job/ai-systems-engineer-claude-code-python-api-integrations-1752075",
+    "job_type": "Full Time",
+    "id": 941
   }
 ]
